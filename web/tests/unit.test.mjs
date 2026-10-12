@@ -96,3 +96,22 @@ test('CSV export escapes text and links each event to EMSC', () => {
   assert.ok(row.includes(',208,5.2,https://www.seismicportal.eu/eventdetails.html?unid=20261009_0000264'));
   assert.ok(row.includes('"9 oct, 12:56 p. m."'));
 });
+
+// ---------------------------------------------------------------- English
+import { setLang } from '../js/i18n.js';
+
+test('English: place names, intensity labels, forecast windows and CSV header', () => {
+  setLang('en', { persist: false });
+  try {
+    assert.equal(placeName(7.5794, -80.7741, PLACES), '26 km SE of Mariato');
+    assert.equal(placeName(8.984, -79.521, PLACES), 'near Panama City');
+    assert.equal(placeName(7.3, -81.9, PLACES), '22 km SW of Coiba Island');
+    assert.equal(describeMmi(5.2), 'V (moderate)');
+    const f = parseForecast(JSON.parse(read('usgs_forecast.json')));
+    assert.deepEqual(f.windows.map((w) => w.label), ['Next day', 'Next week', 'Next month', 'Next year']);
+    const csv = buildCsv([], { name: 'Panama City' }, String);
+    assert.ok(csv.startsWith('id,time_utc,time_panama,') && csv.includes('estimated_intensity_Panama City') && csv.includes('emsc_page'));
+  } finally {
+    setLang('es', { persist: false });
+  }
+});

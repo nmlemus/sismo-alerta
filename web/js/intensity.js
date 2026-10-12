@@ -4,12 +4,15 @@
 // Intensity: Atkinson, Worden & Wald (2014) intensity prediction equation,
 // hypocentral-distance form.
 
+import { localName, t } from './i18n.js';
+
 export const EARTH_RADIUS_KM = 6371.0;
 export const VP_KM_S = 6.0;
 export const VS_KM_S = 3.5;
 
 export const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-export const LABEL_ES = ['', 'no sentido', 'débil', 'débil', 'leve', 'moderado', 'fuerte', 'muy fuerte', 'severo', 'violento', 'extremo'];
+/** Shaking label for an intensity level, in the current language. */
+export const mmiLabel = (level) => t('mmi')[level];
 
 // USGS ShakeMap colors by intensity level.
 export const MMI_COLORS = ['#ffffff', '#dfe6fe', '#bfccff', '#a0e6ff', '#80ffff', '#7aff93', '#ffff00', '#ffc800', '#ff9100', '#ff0000', '#c80000'];
@@ -46,11 +49,9 @@ export function estimateMmi(ev, lat, lon, siteAdjust = 0) {
 }
 
 export const mmiLevel = (mmi) => Math.min(10, Math.max(1, Math.floor(mmi + 0.5)));
-export const describeMmi = (mmi) => `${ROMAN[mmiLevel(mmi)]} (${LABEL_ES[mmiLevel(mmi)]})`;
+export const describeMmi = (mmi) => `${ROMAN[mmiLevel(mmi)]} (${mmiLabel(mmiLevel(mmi))})`;
 
-const DIRS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
-
-/** "16 km al SE de Mariato" relative to the nearest place in the list. */
+/** "16 km al SE de Mariato" / "16 km SE of Mariato" relative to the nearest place in the list. */
 export function placeName(lat, lon, places, fallback = '') {
   let best = null, bestKm = Infinity;
   for (const p of places) {
@@ -58,7 +59,7 @@ export function placeName(lat, lon, places, fallback = '') {
     if (d < bestKm) { bestKm = d; best = p; }
   }
   if (!best || (bestKm > 90 && fallback)) return fallback;
-  if (bestKm < 3) return `cerca de ${best.name}`;
-  const dir = DIRS[Math.floor((bearingDeg(best.lat, best.lon, lat, lon) + 11.25) / 22.5) % 16];
-  return `${Math.round(bestKm)} km al ${dir} de ${best.name}`;
+  if (bestKm < 3) return t('place.near', localName(best));
+  const dir = t('dirs')[Math.floor((bearingDeg(best.lat, best.lon, lat, lon) + 11.25) / 22.5) % 16];
+  return t('place.from', Math.round(bestKm), dir, localName(best));
 }

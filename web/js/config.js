@@ -26,7 +26,7 @@ export const EMSC = {
 // intensity model: +0.6 matches what Panama City reported to USGS "Did You Feel It?"
 // for the 2026-10-09 mainshock; Chitré and Santiago matched the model without it.
 export const REFERENCES = [
-  { id: 'panama', name: 'Ciudad de Panamá', lat: 8.983, lon: -79.52, siteAdjust: 0.6 },
+  { id: 'panama', name: 'Ciudad de Panamá', en: 'Panama City', lat: 8.983, lon: -79.52, siteAdjust: 0.6 },
   { id: 'santiago', name: 'Santiago', lat: 8.1, lon: -80.983, siteAdjust: 0 },
   { id: 'chitre', name: 'Chitré', lat: 7.961, lon: -80.429, siteAdjust: 0 },
   { id: 'lastablas', name: 'Las Tablas', lat: 7.765, lon: -80.275, siteAdjust: 0 },
@@ -34,9 +34,10 @@ export const REFERENCES = [
   { id: 'colon', name: 'Colón', lat: 9.359, lon: -79.901, siteAdjust: 0.6 },
 ];
 
-// Towns used to name each epicenter (approximate coordinates). label: drawn on the map.
+// Towns used to name each epicenter (approximate coordinates). label: drawn on the map;
+// en: English name, where it differs.
 export const PLACES = [
-  { name: 'Ciudad de Panamá', lat: 8.983, lon: -79.52, label: true },
+  { name: 'Ciudad de Panamá', en: 'Panama City', lat: 8.983, lon: -79.52, label: true },
   { name: 'Colón', lat: 9.359, lon: -79.901, label: true },
   { name: 'La Chorrera', lat: 8.88, lon: -79.783 },
   { name: 'Penonomé', lat: 8.519, lon: -80.357, label: true },
@@ -51,7 +52,7 @@ export const PLACES = [
   { name: 'Montijo', lat: 7.994, lon: -81.059 },
   { name: 'Soná', lat: 8.008, lon: -81.319, label: true },
   { name: 'Santa Catalina', lat: 7.632, lon: -81.256 },
-  { name: 'isla Coiba', lat: 7.45, lon: -81.77, label: true },
+  { name: 'isla Coiba', en: 'Coiba Island', lat: 7.45, lon: -81.77, label: true },
   { name: 'David', lat: 8.427, lon: -82.431, label: true },
   { name: 'Puerto Armuelles', lat: 8.283, lon: -82.867 },
   { name: 'Bocas del Toro', lat: 9.34, lon: -82.242 },

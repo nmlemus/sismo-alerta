@@ -1,6 +1,8 @@
 // USGS products for the mainshock: "Did You Feel It?" reports by town and the
 // official aftershock forecast (OAF). Both come from the event's detail feed.
 
+import { tOr } from './i18n.js';
+
 const DETAIL = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
 
 /** Parses one CSV line with quoted fields. */
@@ -31,10 +33,9 @@ export function parseDyfi(text) {
 
 /** OAF forecast.json -> { created, next, windows: [{label, end, bins: {5: {p, min, max, median}}}], aboveMain }. */
 export function parseForecast(f) {
-  const LABELS = { '1 Day': 'Próximo día', '1 Week': 'Próxima semana', '1 Month': 'Próximo mes', '1 Year': 'Próximo año' };
   const windows = (f.forecast || []).map((w) => ({
     key: w.label,
-    label: LABELS[w.label] || w.label,
+    label: tOr(`fc.${w.label}`, w.label), // translated again at render time
     start: new Date(w.timeStart),
     end: new Date(w.timeEnd),
     aboveMain: w.aboveMainshockMag ? { mag: w.aboveMainshockMag.magnitude, p: w.aboveMainshockMag.probability } : null,

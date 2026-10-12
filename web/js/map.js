@@ -8,6 +8,7 @@ import { fmtInt, fmtMag, fmtTime } from './format.js';
 import { radiusFor } from './charts.js';
 import { dayPalette, token } from './theme.js';
 import { emscLink } from './emsc.js';
+import { localName, t } from './i18n.js';
 
 const L = globalThis.L;
 const H = 3600e3;
@@ -22,11 +23,11 @@ function el(tag, cls, text) {
 function quakeCard(ev, note, withLink) {
   const box = el('div', 'qtip');
   box.append(el('div', 'tip-h', fmtTime(ev.t)));
-  box.append(el('div', null, `M${fmtMag(ev.mag)} (${ev.magType}) · ${ev.depth} km de profundidad`));
+  box.append(el('div', null, t('q.depth', fmtMag(ev.mag), ev.magType, ev.depth)));
   box.append(el('div', null, ev.place));
-  box.append(el('div', 'muted', `Localizado por ${ev.agency}${note ? ` · ${note}` : ''}`));
+  box.append(el('div', 'muted', `${t('q.by', ev.agency)}${note ? ` · ${note}` : ''}`));
   if (withLink) {
-    const a = el('a', null, 'Ver ficha en EMSC ↗');
+    const a = el('a', null, t('q.link'));
     a.href = emscLink(ev);
     a.target = '_blank';
     a.rel = 'noopener';
@@ -35,7 +36,7 @@ function quakeCard(ev, note, withLink) {
   return box;
 }
 
-const NOTES = { main: 'sismo principal', other: 'fuera de la zona de réplicas', pre: 'antes del sismo principal', seq: '' };
+const note = (kind) => (kind === 'seq' ? '' : t(`note.${kind}`));
 
 export class QuakeMap {
   constructor({ mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone }) {
@@ -80,12 +81,10 @@ export class QuakeMap {
     this.otherLayer = L.layerGroup().addTo(map);
     this.quakeLayer = L.layerGroup().addTo(map);
     this.fxLayer = L.layerGroup().addTo(map);
-    for (const p of PLACES.filter((x) => x.label)) {
-      L.marker([p.lat, p.lon], {
-        pane: 'labels', interactive: false, keyboard: false,
-        icon: L.divIcon({ className: 'place', html: el('span', null, p.name), iconSize: null }),
-      }).addTo(map);
-    }
+    this.placeLabels = PLACES.filter((x) => x.label).map((p) => ({
+      p,
+      marker: L.marker([p.lat, p.lon], { pane: 'labels', interactive: false, keyboard: false, icon: this.placeIcon(p) }).addTo(map),
+    }));
 
     this.playBtn.addEventListener('click', () => this.togglePlay());
     this.slider.addEventListener('input', () => {
@@ -99,6 +98,15 @@ export class QuakeMap {
       if (!this.fitted) return;
       map.flyToBounds(VIEWS[b.dataset.view], { duration: 0.6 });
     }));
+  }
+
+  placeIcon(p) { return L.divIcon({ className: 'place', html: el('span', null, localName(p)), iconSize: null }); }
+
+  /** Text that doesn't come with the data: town labels, legend, buttons. */
+  relabel() {
+    for (const { p, marker } of this.placeLabels || []) marker.setIcon(this.placeIcon(p));
+    this.playBtn.textContent = t(this.playing ? 'map.pause' : 'map.play');
+    if (this.main) { this.legend(); this.render(); }
   }
 
   get tMin() { return this.showPre ? -SEQUENCE.preDays * 24 * H : 0; }
@@ -124,7 +132,7 @@ export class QuakeMap {
     }
     // Tick on the slider where the mainshock is.
     const zeroAt = Math.round((-this.tMin / (this.T - this.tMin)) * 1000);
-    this.ticks.replaceChildren(...(this.showPre ? [Object.assign(document.createElement('option'), { value: String(zeroAt), label: 'Sismo principal' })] : []));
+    this.ticks.replaceChildren(...(this.showPre ? [Object.assign(document.createElement('option'), { value: String(zeroAt), label: t('leg.main') })] : []));
     const all = [
       { ev: main, kind: 'main' },
       ...seq.map((ev) => ({ ev, kind: 'seq' })),
@@ -141,9 +149,9 @@ export class QuakeMap {
       if (prev) this.layerOf(prev.kind).removeLayer(prev.marker);
       const radius = kind === 'pre' ? Math.max(6, radiusFor(ev.mag) + 2) : radiusFor(ev.mag) + (kind === 'main' ? 2 : 0);
       const marker = L.circleMarker([ev.lat, ev.lon], { pane: kind === 'pre' ? 'pre' : 'quakes', radius, weight: 1 });
-      marker.bindPopup(() => quakeCard(ev, NOTES[kind], true));
+      marker.bindPopup(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), true));
       if (kind === 'main') marker.bindTooltip(`M${fmtMag(ev.mag)}`, { permanent: true, direction: 'right', className: 'main-label', offset: [8, 0] });
-      else marker.bindTooltip(() => quakeCard(ev, NOTES[kind], false), { direction: 'top', offset: [0, -4] });
+      else marker.bindTooltip(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), false), { direction: 'top', offset: [0, -4] });
       this.markers.set(ev.id, { marker, ev, kind, sig, shown: false, key: '' });
     }
     for (const [id, m] of this.markers) {
@@ -162,7 +170,7 @@ export class QuakeMap {
   setRef(ref) {
     if (this.refMarker) this.map.removeLayer(this.refMarker);
     this.refMarker = L.marker([ref.lat, ref.lon], {
-      pane: 'labels', keyboard: false, title: `Punto de referencia: ${ref.name}`,
+      pane: 'labels', keyboard: false, title: t('map.refTitle', localName(ref)),
       icon: L.divIcon({ className: 'refpin', html: el('span', null, '◆'), iconSize: [16, 16] }),
     }).addTo(this.map);
   }
@@ -215,10 +223,8 @@ export class QuakeMap {
       }
     }
     const before = this.t != null && this.t < 0;
-    const when = this.t == null ? `Ahora (${fmtTime(new Date(tNow))})` : fmtTime(new Date(tNow));
-    const count = before
-      ? `${(-this.t / (24 * H)).toFixed(1)} días antes del sismo principal · ${fmtInt(nPre)} sismo${nPre === 1 ? '' : 's'} en la región hasta ese momento`
-      : `${fmtInt(n)} réplica${n === 1 ? '' : 's'} hasta ese momento`;
+    const when = this.t == null ? t('time.now', fmtTime(new Date(tNow))) : fmtTime(new Date(tNow));
+    const count = before ? t('time.before', (-this.t / (24 * H)).toFixed(1), fmtInt(nPre)) : t('time.after', fmtInt(n));
     this.timeLabel.textContent = `${when} · ${count}`;
     this.slider.value = String(this.t == null ? 1000 : Math.round(((this.t - this.tMin) / (this.T - this.tMin)) * 1000));
   }
@@ -228,7 +234,7 @@ export class QuakeMap {
     // Playback starts at the mainshock unless the slider was moved into the week before.
     if (this.t == null || this.t >= this.T) this.t = 0;
     this.playing = true;
-    this.playBtn.textContent = '❚❚ Pausa';
+    this.playBtn.textContent = t('map.pause');
     let last = performance.now();
     const step = (now) => {
       if (!this.playing) return;
@@ -244,7 +250,7 @@ export class QuakeMap {
   stop() {
     this.playing = false;
     cancelAnimationFrame(this.raf);
-    this.playBtn.textContent = '▶ Reproducir';
+    this.playBtn.textContent = t('map.play');
   }
 
   /** A pulsing ring around a newly published event. */
@@ -265,11 +271,11 @@ export class QuakeMap {
       s.append(i, document.createTextNode(label));
       box.append(s);
     };
-    add({ background: 'var(--main)' }, 'Sismo principal');
+    add({ background: 'var(--main)' }, t('leg.main'));
     for (const d of this.palette?.legend || []) add({ background: d.color }, d.label);
-    if (this.showPre) add({ background: 'var(--pre)' }, `${SEQUENCE.preDays} días antes`);
-    add({ background: 'transparent', border: '2px solid var(--ink)' }, `Últimas ${RECENT_HOURS} h del momento mostrado`);
-    add({ border: '1.5px solid var(--muted)', background: 'transparent' }, 'Fuera de la zona de réplicas (recuadro)');
-    add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, 'Punto de referencia');
+    if (this.showPre) add({ background: 'var(--pre)' }, t('leg.preDays', SEQUENCE.preDays));
+    add({ background: 'transparent', border: '2px solid var(--ink)' }, t('leg.recent', RECENT_HOURS));
+    add({ border: '1.5px solid var(--muted)', background: 'transparent' }, t('leg.outside'));
+    add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, t('leg.ref'));
   }
 }

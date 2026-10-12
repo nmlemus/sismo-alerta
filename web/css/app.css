@@ -86,6 +86,8 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .status[data-kind=bad] .dot { background: var(--critical); }
 .status .synced { color: var(--ink-2); }
 @keyframes live { 50% { opacity: 0.35; } }
+.headrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.lang .btn { padding: 4px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
 
 .toast { position: sticky; top: 8px; z-index: 1000; align-self: center; background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; max-width: 100%; }
 

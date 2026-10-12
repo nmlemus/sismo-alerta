@@ -1,6 +1,7 @@
 // CSV export of the events table. Pure, so it can be unit tested without a browser.
 
 import { emscLink } from './emsc.js';
+import { t } from './i18n.js';
 
 const cell = (v) => {
   const s = String(v ?? '');
@@ -9,8 +10,7 @@ const cell = (v) => {
 
 /** rows: [{ ev, km, mmi }] as in the table; fmtLocal formats a Date in Panama time. */
 export function buildCsv(rows, ref, fmtLocal) {
-  const header = ['id', 'hora_utc', 'hora_panama', 'latitud', 'longitud', 'profundidad_km', 'magnitud', 'tipo_magnitud', 'agencia', 'lugar',
-    `distancia_km_${ref.name}`, `intensidad_estimada_${ref.name}`, 'ficha_emsc'];
+  const header = t('csv.head', ref.name); // column names in the page's language
   const lines = [header.map(cell).join(',')];
   for (const r of [...rows].sort((a, b) => a.ev.t - b.ev.t)) {
     const e = r.ev;

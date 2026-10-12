@@ -1,9 +1,10 @@
 // d3 charts. Each draw function clears its container and redraws at its current width.
 // Colors: series and MMI colors are CSS variables / the USGS ShakeMap scale; text uses ink tokens.
 
-import { LABEL_ES, MMI_COLORS, ROMAN, describeMmi, mmiAww2014, mmiLevel } from './intensity.js';
+import { MMI_COLORS, ROMAN, describeMmi, mmiAww2014, mmiLabel, mmiLevel } from './intensity.js';
 import { fmtInt, fmtMag, fmtTime, tickLabel, wall } from './format.js';
 import { token } from './theme.js';
+import { localName, t } from './i18n.js';
 
 const d3 = globalThis.d3;
 
@@ -103,7 +104,7 @@ export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, p
   if (showPre) {
     const xm = x(wall(main.t));
     svg.append('line').attr('class', 'ref').attr('x1', xm).attr('x2', xm).attr('y1', m.t).attr('y2', H - m.b);
-    svg.append('text').attr('class', 'tick').attr('x', xm - 6).attr('y', m.t + 4).attr('text-anchor', 'end').text(`← ${preDays} días antes del sismo principal`);
+    svg.append('text').attr('class', 'tick').attr('x', xm - 6).attr('y', m.t + 4).attr('text-anchor', 'end').text(t('tl.pre', preDays));
   }
   const colorOf = (d) => (d === main ? token('--main') : d.t < main.t ? token('--pre') : palette.colorOf(dayIndex(d)));
   const sorted = [...all].sort((a, b) => a.mag - b.mag);
@@ -115,14 +116,14 @@ export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, p
     .attr('cx', (d) => x(wall(d.t))).attr('cy', (d) => y(d.mag)).attr('r', (d) => radiusFor(d.mag))
     .attr('fill', colorOf);
   svg.append('text').attr('class', 'label strong').attr('x', x(wall(main.t)) + radiusFor(main.mag) + 6).attr('y', y(main.mag)).attr('dy', '0.32em')
-    .text(`M${fmtMag(main.mag)} sismo principal`);
+    .text(t('tl.mainLbl', fmtMag(main.mag)));
   const big = seq.length ? seq.reduce((a, b) => (b.mag > a.mag ? b : a)) : null;
   if (big) {
     svg.append('text').attr('class', 'label').attr('x', x(wall(big.t)) + radiusFor(big.mag) + 6).attr('y', y(big.mag)).attr('dy', '0.32em')
-      .text(`M${fmtMag(big.mag)} mayor réplica`);
+      .text(t('tl.bigLbl', fmtMag(big.mag)));
   }
   nearestHover(el, svg, all.map((d) => ({ d, x: x(wall(d.t)), y: y(d.mag), r: radiusFor(d.mag) })),
-    (d) => [fmtTime(d.t), `M${fmtMag(d.mag)} (${d.magType}) · ${d.depth} km · ${d.agency}`, d.place + (d.t < main.t ? ' · antes del sismo principal' : '')]);
+    (d) => [fmtTime(d.t), `M${fmtMag(d.mag)} (${d.magType}) · ${d.depth} km · ${d.agency}`, d.place + (d.t < main.t ? t('tip.beforeMain') : '')]);
 }
 
 /** Legend items shared by the timeline (and the same colors as the map). */
@@ -135,9 +136,9 @@ export function dayLegend(el, { palette, showPre, preDays }) {
     s.append(i, document.createTextNode(label));
     el.append(s);
   };
-  add('var(--main)', 'Sismo principal');
+  add('var(--main)', t('leg.main'));
   for (const d of palette.legend) add(d.color, d.label);
-  if (showPre) add('var(--pre)', `${preDays} días antes`);
+  if (showPre) add('var(--pre)', t('leg.preDays', preDays));
 }
 
 /**
@@ -172,13 +173,13 @@ export function drawWindows(el, { windows }) {
       .on('pointermove', (ev) => {
         const [px, py] = d3.pointer(ev, el);
         const when = w.start < 0
-          ? `${Math.abs(w.start)}–${Math.abs(w.start + 6)} h antes del sismo principal`
-          : `${w.start}–${w.start + 6} h después del sismo principal${open ? ' (en curso)' : ''}`;
+          ? t('win.before', Math.abs(w.start), Math.abs(w.start + 6))
+          : t('win.after', w.start, w.start + 6, open);
         tip.show([
           when,
-          [token('--series-1'), `${w.count - w.m4} de M2.5–3.9`],
-          [token('--series-2'), `${w.m4} de M4 o más`],
-          w.maxMag == null ? 'Sin sismos' : `Mayor: M${fmtMag(w.maxMag)}`,
+          [token('--series-1'), t('win.small', w.count - w.m4)],
+          [token('--series-2'), t('win.m4', w.m4)],
+          w.maxMag == null ? t('win.none') : t('win.max', fmtMag(w.maxMag)),
         ], px, py);
       })
       .on('pointerleave', () => tip.hide());
@@ -186,7 +187,7 @@ export function drawWindows(el, { windows }) {
   if (zeroIdx > 0) {
     const xz = x(windows[zeroIdx].label) - (x.step() * x.paddingInner()) / 2;
     svg.append('line').attr('class', 'ref').attr('x1', xz).attr('x2', xz).attr('y1', 10).attr('y2', H - 28);
-    svg.append('text').attr('class', 'tick').attr('x', xz + 4).attr('y', 12).text('sismo principal');
+    svg.append('text').attr('class', 'tick').attr('x', xz + 4).attr('y', 12).text(t('win.main'));
   }
   svg.append('line').attr('class', 'axis').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(0)).attr('y2', y(0));
 }
@@ -195,7 +196,7 @@ export function drawWindows(el, { windows }) {
 export function drawCumulative(el, { seq, main, now }) {
   const { svg, W, H } = newSvg(el, 250);
   const series = [
-    { cls: 's1', label: 'Todas', pts: seq },
+    { cls: 's1', label: t('cum.all'), pts: seq },
     { cls: 's2', label: 'M4+', pts: seq.filter((e) => e.mag >= 4) },
   ].map((s) => ({ ...s, steps: [{ t: main.t, n: 0 }, ...s.pts.map((e, i) => ({ t: e.t, n: i + 1 })), { t: new Date(now), n: s.pts.length }] }));
   const maxN = Math.max(1, seq.length);
@@ -232,7 +233,7 @@ export function drawCumulative(el, { seq, main, now }) {
     const vals = series.map((s) => s.steps[Math.max(0, bis(s.steps, t) - 1)].n);
     rule.attr('x1', px).attr('x2', px).attr('opacity', 1);
     const sc = el.clientWidth / W;
-    tip.show([fmtTime(t), [token('--series-1'), `${fmtInt(vals[0])} réplicas en total`], [token('--series-2'), `${fmtInt(vals[1])} de M4 o más`]], px * sc, 40);
+    tip.show([fmtTime(t), [token('--series-1'), t('cum.tipAll', fmtInt(vals[0]))], [token('--series-2'), t('win.m4', fmtInt(vals[1]))]], px * sc, 40);
   }).on('pointerleave', () => { tip.hide(); rule.attr('opacity', 0); });
 }
 
@@ -261,13 +262,13 @@ export function drawIntensity(el, { rows, ref }) {
   yAxis(svg, y, d3.range(1, maxLv + 1), m.l, W - m.r, (v) => ROMAN[v]);
   timeAxis(svg, x, H - m.b, W);
   svg.append('line').attr('class', 'ref').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(2.5)).attr('y2', y(2.5));
-  svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', y(2.5) - 5).attr('text-anchor', 'end').text('desde aquí se siente dentro de casa');
+  svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', y(2.5) - 5).attr('text-anchor', 'end').text(t('int.indoors'));
   const sorted = [...rows].sort((a, b) => a.ev.mag - b.ev.mag);
   svg.append('g').selectAll('circle').data(sorted).join('circle')
     .attr('class', 'dot mmi').attr('fill', (r) => MMI_COLORS[mmiLevel(r.mmi)])
     .attr('cx', (r) => x(wall(r.ev.t))).attr('cy', (r) => y(r.mmi)).attr('r', (r) => radiusFor(r.ev.mag));
   nearestHover(el, svg, rows.map((r) => ({ d: r, x: x(wall(r.ev.t)), y: y(r.mmi), r: radiusFor(r.ev.mag) })),
-    (r) => [fmtTime(r.ev.t), `M${fmtMag(r.ev.mag)} a ${Math.round(r.km)} km de ${ref.name}`, `Intensidad estimada: ${describeMmi(r.mmi)}`, r.ev.place]);
+    (r) => [fmtTime(r.ev.t), t('int.tip', fmtMag(r.ev.mag), Math.round(r.km), localName(ref)), t('int.est', describeMmi(r.mmi)), r.ev.place]);
 }
 
 /**
@@ -282,12 +283,12 @@ export function drawDyfi(el, { dyfi, main, refRow }) {
   const y = d3.scaleLinear([2, 9], [H - m.b, m.t]);
   yAxis(svg, y, d3.range(2, 10), m.l, W - m.r, (v) => ROMAN[v]);
   for (const v of x.ticks(W < 480 ? 4 : 7)) svg.append('text').attr('class', 'tick').attr('x', x(v)).attr('y', H - m.b + 18).attr('text-anchor', 'middle').text(v);
-  svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', H - 2).attr('text-anchor', 'end').text('distancia al hipocentro (km)');
+  svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', H - 2).attr('text-anchor', 'end').text(t('dyfi.axis'));
   svg.append('line').attr('class', 'axis').attr('x1', m.l).attr('x2', W - m.r).attr('y1', H - m.b).attr('y2', H - m.b);
   const curve = d3.range(5, maxKm + 1, 5).map((km) => ({ km, mmi: mmiAww2014(main.mag, km) })).filter((p) => p.mmi >= 2 && p.mmi <= 9);
   svg.append('path').attr('class', 'model').attr('d', d3.line((p) => x(p.km), (p) => y(p.mmi))(curve));
   const last = curve[curve.length - 1];
-  if (last) svg.append('text').attr('class', 'tick').attr('x', x(last.km) - 4).attr('y', y(last.mmi) + 14).attr('text-anchor', 'end').text('modelo');
+  if (last) svg.append('text').attr('class', 'tick').attr('x', x(last.km) - 4).attr('y', y(last.mmi) + 14).attr('text-anchor', 'end').text(t('dyfi.model'));
   const r = d3.scaleSqrt([1, d3.max(dyfi, (d) => d.n)], [3, 12]);
   const sorted = [...dyfi].sort((a, b) => b.n - a.n);
   svg.append('g').selectAll('circle').data(sorted).join('circle')
@@ -300,8 +301,8 @@ export function drawDyfi(el, { dyfi, main, refRow }) {
       .attr('text-anchor', right ? 'start' : 'end').text(refRow.name);
   }
   nearestHover(el, svg, dyfi.map((d) => ({ d, x: x(d.hypoKm), y: y(d.cdi), r: r(d.n) })),
-    (d) => [`${d.name}, ${d.province}`, `Reportado: ${ROMAN[mmiLevel(d.cdi)]} (${d.cdi.toFixed(1)}) · ${fmtInt(d.n)} reporte${d.n === 1 ? '' : 's'}`,
-      `Modelo: ${mmiAww2014(main.mag, d.hypoKm).toFixed(1)} a ${Math.round(d.hypoKm)} km`]);
+    (d) => [`${d.name}, ${d.province}`, t('dyfi.tipRep', ROMAN[mmiLevel(d.cdi)], d.cdi.toFixed(1), fmtInt(d.n)),
+      t('dyfi.tipModel', mmiAww2014(main.mag, d.hypoKm).toFixed(1), Math.round(d.hypoKm))]);
 }
 
 /** Legend for the Modified Mercalli scale (USGS ShakeMap colors). */
@@ -312,7 +313,7 @@ export function mmiLegend(el, from = 1, to = 8) {
     const i = document.createElement('i');
     i.className = 'sw';
     i.style.background = MMI_COLORS[lv];
-    s.append(i, document.createTextNode(`${ROMAN[lv]} ${LABEL_ES[lv]}`));
+    s.append(i, document.createTextNode(`${ROMAN[lv]} ${mmiLabel(lv)}`));
     el.append(s);
   }
 }

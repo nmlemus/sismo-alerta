@@ -53,7 +53,8 @@ const check = (ok, msg) => { if (!ok) failures.push(msg); console.log(`${ok ? 'o
 
 const browser = await chromium.launch();
 for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 390, height: 844 }]) {
-  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: vp.name === 'mobile' ? 'dark' : 'light' });
+  // Spanish browser; English is checked below with the ES/EN switch.
+  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: vp.name === 'mobile' ? 'dark' : 'light', locale: 'es-PA' });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -161,6 +162,34 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(300);
   check((await page.textContent('#ref-name')) === 'Chitré', `${vp.name}: reference switches to Chitré`);
   if (OUT && vp.name === 'desktop') await page.locator('#ref-card').screenshot({ path: join(OUT, 'reference.png') });
+
+  // English
+  await page.click('[data-lang="en"]');
+  await page.waitForTimeout(400);
+  check((await page.getAttribute('html', 'lang')) === 'en', `${vp.name}: html lang switches to en`);
+  check((await page.textContent('h1')) === 'The Panama earthquake and its aftershocks', `${vp.name}: English title`);
+  check((await page.textContent('#live-text')) === 'Live', `${vp.name}: English live status`);
+  check((await page.textContent('#takeaway')).includes('aftershocks have been recorded since the mainshock on Oct 9'), `${vp.name}: English takeaway (${await page.textContent('#takeaway')})`);
+  check((await page.textContent('#n-after-sub')).includes('M2.5 or larger'), `${vp.name}: English tile`);
+  check(/Mainshock.*Fri Oct 9.*Mon Oct 12/.test(await page.textContent('#map-legend')), `${vp.name}: English day legend`);
+  check((await page.textContent('#forecast')).includes('94%') && (await page.textContent('#forecast')).includes('Next week'), `${vp.name}: English forecast`);
+  check((await page.textContent('#events thead')).includes('Time (Panama)'), `${vp.name}: English table header`);
+  check((await page.locator('#events tbody td', { hasText: / km [NSEW]{1,3} of / }).count()) > 100, `${vp.name}: English place names`);
+  check((await page.textContent('#map')).includes('Panama City'), `${vp.name}: English map labels`);
+  check((await page.textContent('#map-play')) === '▶ Play', `${vp.name}: English play button`);
+  check((await page.textContent('#legend-intensity')).includes('moderate'), `${vp.name}: English intensity legend`);
+  check((await page.getAttribute('#events-search', 'placeholder')).startsWith('Search'), `${vp.name}: English search placeholder`);
+  const [dlEn] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
+  check(readFileSync(await dlEn.path(), 'utf8').includes('time_panama'), `${vp.name}: English CSV header`);
+  if (OUT && vp.name === 'desktop') await page.screenshot({ path: join(OUT, 'english.png'), fullPage: true });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#n-after').textContent !== '—', null, { timeout: 15000 });
+  check(page.url().includes('lang=en') && (await page.getAttribute('html', 'lang')) === 'en', `${vp.name}: English kept after reload`);
+  check((await page.textContent('#ref-reported')).includes('169 people'), `${vp.name}: English DYFI text (${await page.textContent('#ref-reported')})`);
+  await page.click('[data-lang="es"]');
+  await page.waitForTimeout(300);
+  check((await page.textContent('h1')) === 'Terremoto de Panamá y sus réplicas' && (await page.textContent('#map-play')) === '▶ Reproducir', `${vp.name}: back to Spanish`);
+  check((await page.textContent('#ref-name')) === 'Ciudad de Panamá', `${vp.name}: reference name back in Spanish`);
 
   check(errors.length === 0, `${vp.name}: no page errors ${errors.length ? JSON.stringify(errors.slice(0, 3)) : ''}`);
   await page.close();

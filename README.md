@@ -74,6 +74,8 @@ Además lee del USGS los reportes "Did You Feel It?" y el pronóstico oficial de
 
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
 
+La página está en español e inglés. Toma el idioma del navegador, y el botón ES/EN de arriba lo cambia y lo recuerda. Para compartir un enlace en un idioma, agrega `?lang=en` o `?lang=es`. Todos los textos están en `web/js/i18n.js`.
+
 **Probar en local**
 ```bash
 cd web

@@ -3,12 +3,13 @@
 import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
 import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
-import { ago, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
+import { ago, duration, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
 import { dayLegend, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange } from './theme.js';
+import { applyStatic, lang, localName, setLang, t, tOr } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
 const H = 3600e3;
@@ -21,7 +22,7 @@ const state = {
   error: null,
   live: 'connecting', // connecting | open | closed
   lastSync: null,
-  ref: { ...REFERENCES[0] },
+  ref: { ...REFERENCES[0] }, // .name is set in the page's language by localRef()
   sort: { key: 't', dir: -1 },
   search: '',
   usgs: null, // { dyfi, dyfiCount, forecast, url } once loaded
@@ -128,10 +129,10 @@ function renderStatus() {
   const kind = state.error && !state.loaded ? 'bad' : state.live === 'open' ? 'ok' : 'warn';
   pill.dataset.kind = kind;
   const text = state.error && !state.loaded
-    ? 'Sin conexión con EMSC'
-    : state.live === 'open' ? 'En vivo' : state.loaded ? 'Reconectando… (se actualiza cada 2 min)' : 'Cargando…';
+    ? t('st.offline')
+    : state.live === 'open' ? t('st.live') : state.loaded ? t('st.reconnecting') : t('st.loading');
   setText('#live-text', text);
-  setText('#synced', state.lastSync ? `Datos al ${fmtClock(state.lastSync)}` : '');
+  setText('#synced', state.lastSync ? t('st.synced', fmtClock(state.lastSync)) : '');
 }
 
 function chart(sel, fn, opts) {
@@ -155,19 +156,18 @@ function render() {
   setText('#main-mag', `M${fmtMag(main.mag)}`);
   setText('#main-when', `${fmtTime(main.t)} · ${main.place}`);
   setText('#n-after', fmtInt(seq.length));
-  setText('#n-after-sub', `en ${s.span < 48 ? `${Math.round(s.span)} horas` : `${(s.span / 24).toFixed(1)} días`} · M2.5 o más · ${fmtInt(s.m5)} de M5+, ${fmtInt(s.m6)} de M6+`);
+  const span = s.span < 48 ? t('span.hours', Math.round(s.span)) : t('span.days', (s.span / 24).toFixed(1));
+  setText('#n-after-sub', t('after.sub', span, fmtInt(s.m5), fmtInt(s.m6)));
   setText('#big-mag', s.big ? `M${fmtMag(s.big.mag)}` : '—');
   setText('#big-sub', s.big ? `${fmtTime(s.big.t)} · ${s.big.place}` : '');
   setText('#m4-rate', fmtRate(s.m4Last12));
-  setText('#m4-sub', `M4+ por hora en las últimas 12 h (${fmtRate(s.m4First12)} en las primeras 12 h)`);
+  setText('#m4-sub', t('m4.sub', fmtRate(s.m4First12)));
   setText('#last-ago', s.latest ? ago(s.latest.t, now) : '—');
   setText('#last-sub', s.latest ? `M${fmtMag(s.latest.mag)} · ${s.latest.place}` : '');
 
-  const take = [`Se han registrado ${fmtInt(seq.length)} réplicas desde el sismo principal del ${fmtTime(main.t)}`.replace(/\.?$/, '.')];
-  if (s.span >= 24) {
-    take.push(`Las fuertes (M4 o más) bajaron de ${fmtRate(s.m4First12)} a ${fmtRate(s.m4Last12)} por hora entre las primeras 12 horas y las últimas 12; el total, de ${fmtRate(s.rateFirst12)} a ${fmtRate(s.rateLast12)} por hora.`);
-  }
-  if (s.latest) take.push(`La más reciente: M${fmtMag(s.latest.mag)}, ${s.latest.place}, ${ago(s.latest.t, now)}.`);
+  const take = [t('take.count', fmtInt(seq.length), fmtTime(main.t)).replace(/\.\.$/, '.')];
+  if (s.span >= 24) take.push(t('take.rate', fmtRate(s.m4First12), fmtRate(s.m4Last12), fmtRate(s.rateFirst12), fmtRate(s.rateLast12)));
+  if (s.latest) take.push(t('take.latest', fmtMag(s.latest.mag), s.latest.place, ago(s.latest.t, now)));
   setText('#takeaway', take.join(' '));
 
   // reference point: reported (DYFI) when the town has reports, estimated always
@@ -177,19 +177,19 @@ function render() {
   const reported = dyfiFor(ref);
   setText('#ref-name', ref.name);
   setText('#ref-reported', reported
-    ? `${ROMAN[mmiLevel(reported.cdi)]} (${reported.cdi.toFixed(1)}) según ${fmtInt(reported.n)} persona${reported.n === 1 ? '' : 's'} que lo reportaron al USGS en ${reported.name}`
-    : state.usgs ? 'sin reportes de la gente para este lugar' : state.usgsError ? 'no se pudieron cargar los reportes del USGS' : 'cargando reportes del USGS…');
-  setText('#ref-main', `${describeMmi(mainRow.mmi)} a ${Math.round(mainRow.km)} km del epicentro`);
+    ? t('ref.reported', ROMAN[mmiLevel(reported.cdi)], reported.cdi.toFixed(1), fmtInt(reported.n), reported.name)
+    : state.usgs ? t('ref.noReports') : state.usgsError ? t('ref.usgsFail') : t('ref.usgsLoading'));
+  setText('#ref-main', t('ref.mainEst', describeMmi(mainRow.mmi), Math.round(mainRow.km)));
   const day = rows.filter((r) => r.ev !== main && now - r.ev.t < 24 * H);
   const top = day.length ? day.reduce((a, b) => (b.mmi > a.mmi ? b : a)) : null;
-  setText('#ref-day', top ? `${describeMmi(top.mmi)} · M${fmtMag(top.ev.mag)}, ${ago(top.ev.t, now)}` : 'ninguna réplica en las últimas 24 h');
+  setText('#ref-day', top ? `${describeMmi(top.mmi)} · M${fmtMag(top.ev.mag)}, ${ago(top.ev.t, now)}` : t('ref.dayNone'));
   const felt = rows.filter((r) => r.ev !== main && r.mmi >= 2.5).length;
-  setText('#ref-felt', `${fmtInt(felt)} de ${fmtInt(seq.length)} réplicas probablemente se sintieron dentro de casa en ${ref.name}.`);
+  setText('#ref-felt', t('ref.felt', fmtInt(felt), fmtInt(seq.length), ref.name));
   const badgeMmi = reported ? reported.cdi : mainRow.mmi;
   const badge = $('#ref-badge');
   badge.textContent = ROMAN[mmiLevel(badgeMmi)];
   badge.style.background = MMI_COLORS[mmiLevel(badgeMmi)];
-  setText('#ref-badge-cap', reported ? 'reportado' : 'estimado');
+  setText('#ref-badge-cap', reported ? t('badge.reported') : t('badge.estimated'));
 
   // charts
   const palette = dayPalette(d.days);
@@ -201,7 +201,7 @@ function render() {
   dayLegend($('#legend-timeline'), opts);
   const preZone = d.pre.filter((e) => e.inZone);
   setText('#pre-note', state.showPre
-    ? `En los ${SEQUENCE.preDays} días anteriores hubo ${fmtInt(d.pre.length)} sismos en la región, ${fmtInt(preZone.length)} de ellos en la zona de réplicas${preZone.length ? ` (el último, ${ago(preZone[preZone.length - 1].t, main.t).replace('hace ', '')} antes del sismo principal)` : ''}.`
+    ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '')
     : '');
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
@@ -223,14 +223,14 @@ function renderDyfi(main, reported) {
   if (!dyfi?.length) {
     node.classList.toggle('skeleton', !state.usgsError && !state.usgs);
     node.replaceChildren();
-    if (state.usgsError || state.usgs) node.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'Los reportes del USGS no están disponibles en este momento.' }));
+    if (state.usgsError || state.usgs) node.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: t('dyfi.unavailable') }));
     return;
   }
   node.classList.remove('skeleton');
   drawDyfi(node, { dyfi, main, refRow: reported });
   mmiLegend($('#legend-dyfi'), 3, 8);
   const total = state.usgs.dyfiCount;
-  setText('#dyfi-count', total ? `${fmtInt(total)} reportes en total; aquí, ${fmtInt(dyfi.length)} lugares de Panamá.` : '');
+  setText('#dyfi-count', total ? t('dyfi.count', fmtInt(total), fmtInt(dyfi.length)) : '');
 }
 
 function renderForecast() {
@@ -239,7 +239,7 @@ function renderForecast() {
   if (!f) {
     box.replaceChildren(Object.assign(document.createElement('p'), {
       className: 'muted',
-      textContent: state.usgs || state.usgsError ? 'El pronóstico del USGS no está disponible en este momento.' : 'Cargando el pronóstico del USGS…',
+      textContent: state.usgs || state.usgsError ? t('fc.unavailable') : t('fc.loading'),
     }));
     return;
   }
@@ -248,18 +248,18 @@ function renderForecast() {
   table.className = 'fc';
   const head = table.createTHead().insertRow();
   head.append(Object.assign(document.createElement('th'), { textContent: '' }));
-  for (const w of wins) head.append(Object.assign(document.createElement('th'), { textContent: w.label, className: 'n' }));
+  for (const w of wins) head.append(Object.assign(document.createElement('th'), { textContent: tOr(`fc.${w.key}`, w.label), className: 'n' }));
   const body = table.createTBody();
   for (const mag of [5, 6, 7]) {
     const tr = body.insertRow();
-    tr.append(Object.assign(document.createElement('th'), { textContent: `M${mag} o más`, scope: 'row' }));
+    tr.append(Object.assign(document.createElement('th'), { textContent: t('fc.row', mag), scope: 'row' }));
     for (const w of wins) {
       const b = w.bins[mag];
       const td = tr.insertCell();
       td.className = 'n';
       if (!b) { td.textContent = '—'; continue; }
       const p = Object.assign(document.createElement('b'), { textContent: fmtPct(b.p) });
-      const range = b.max > 0 ? `${b.min}–${b.max} sismos` : 'ninguno probable';
+      const range = b.max > 0 ? t('fc.range', b.min, b.max) : t('fc.none');
       td.append(p, Object.assign(document.createElement('div'), { className: 'muted', textContent: range }));
     }
   }
@@ -267,13 +267,13 @@ function renderForecast() {
   const parts = [table];
   if (week?.aboveMain) {
     parts.push(Object.assign(document.createElement('p'), {
-      textContent: `Probabilidad de un sismo igual o mayor que el principal (M${fmtMag(week.aboveMain.mag)}) en la próxima semana: ${fmtPct(week.aboveMain.p)}.`,
+      textContent: t('fc.above', fmtMag(week.aboveMain.mag), fmtPct(week.aboveMain.p)),
     }));
   }
   const meta = document.createElement('p');
   meta.className = 'muted';
-  meta.append(`Pronóstico oficial del USGS, emitido el ${fmtTime(f.created)}${f.next ? `; próxima actualización: ${fmtTime(f.next)}` : ''}. Cada celda: probabilidad de al menos un sismo de esa magnitud y número probable (rango del 95 %). `);
-  const a = Object.assign(document.createElement('a'), { textContent: 'Ver en el USGS ↗', target: '_blank', rel: 'noopener' });
+  meta.append(t('fc.meta', fmtTime(f.created), f.next ? fmtTime(f.next) : ''));
+  const a = Object.assign(document.createElement('a'), { textContent: t('fc.link'), target: '_blank', rel: 'noopener' });
   a.href = `https://earthquake.usgs.gov/earthquakes/eventpage/${encodeURIComponent(SEQUENCE.usgsEventId)}/oaf/forecast`;
   meta.append(a);
   parts.push(meta);
@@ -283,15 +283,15 @@ function renderForecast() {
 // ------------------------------------------------------------------ table + CSV
 
 const COLS = [
-  { key: 't', label: 'Hora (Panamá)', val: (r) => r.ev.t.getTime(), text: (r) => fmtTime(r.ev.t) },
-  { key: 'mag', label: 'Mag.', num: true, val: (r) => r.ev.mag, text: (r) => fmtMag(r.ev.mag) },
-  { key: 'type', label: 'Tipo', hide: true, val: (r) => r.ev.magType, text: (r) => r.ev.magType },
-  { key: 'agency', label: 'Agencia', hide: true, val: (r) => r.ev.agency, text: (r) => r.ev.agency },
-  { key: 'depth', label: 'Prof. (km)', num: true, hide: true, val: (r) => r.ev.depth, text: (r) => String(r.ev.depth) },
-  { key: 'place', label: 'Lugar', val: (r) => r.ev.place, text: (r) => r.ev.place },
-  { key: 'km', label: 'Distancia (km)', num: true, hide: true, val: (r) => r.km, text: (r) => String(Math.round(r.km)) },
-  { key: 'mmi', label: 'Intensidad est.', val: (r) => r.mmi, text: (r) => describeMmi(r.mmi) },
-  { key: 'link', label: 'Ficha', nosort: true, val: () => 0, text: () => '' },
+  { key: 't', val: (r) => r.ev.t.getTime(), text: (r) => fmtTime(r.ev.t) },
+  { key: 'mag', num: true, val: (r) => r.ev.mag, text: (r) => fmtMag(r.ev.mag) },
+  { key: 'type', hide: true, val: (r) => r.ev.magType, text: (r) => r.ev.magType },
+  { key: 'agency', hide: true, val: (r) => r.ev.agency, text: (r) => r.ev.agency },
+  { key: 'depth', num: true, hide: true, val: (r) => r.ev.depth, text: (r) => String(r.ev.depth) },
+  { key: 'place', val: (r) => r.ev.place, text: (r) => r.ev.place },
+  { key: 'km', num: true, hide: true, val: (r) => r.km, text: (r) => String(Math.round(r.km)) },
+  { key: 'mmi', val: (r) => r.mmi, text: (r) => describeMmi(r.mmi) },
+  { key: 'link', nosort: true, val: () => 0, text: () => '' },
 ];
 
 function renderTable(rows) {
@@ -302,10 +302,10 @@ function renderTable(rows) {
       const th = document.createElement('th');
       if (c.num) th.classList.add('n');
       if (c.hide) th.classList.add('hide-s');
-      if (c.nosort) { th.append(Object.assign(document.createElement('span'), { className: 'th', textContent: c.label })); head.append(th); continue; }
+      if (c.nosort) { th.append(Object.assign(document.createElement('span'), { className: 'th', textContent: t(`col.${c.key}`) })); head.append(th); continue; }
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = c.label;
+      b.textContent = t(`col.${c.key}`);
       b.addEventListener('click', () => {
         state.sort = state.sort.key === c.key ? { key: c.key, dir: -state.sort.dir } : { key: c.key, dir: c.num || c.key === 't' ? -1 : 1 };
         scheduleRender();
@@ -336,7 +336,7 @@ function renderTable(rows) {
       }
       if (c.key === 'link') {
         const a = Object.assign(document.createElement('a'), { textContent: 'EMSC ↗', target: '_blank', rel: 'noopener', href: emscLink(r.ev) });
-        a.setAttribute('aria-label', `Ficha del sismo en EMSC (${fmtTime(r.ev.t)})`);
+        a.setAttribute('aria-label', t('link.aria', fmtTime(r.ev.t)));
         td.append(a);
       } else {
         td.append(document.createTextNode(c.text(r)));
@@ -345,7 +345,7 @@ function renderTable(rows) {
     }
     return tr;
   }));
-  setText('#events-count', `${fmtInt(shown.length)} de ${fmtInt(rows.length)} sismos`);
+  setText('#events-count', t('events.count', fmtInt(shown.length), fmtInt(rows.length)));
 }
 
 function downloadCsv() {
@@ -354,7 +354,7 @@ function downloadCsv() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
-  a.download = `sismos_panama_${stamp}.csv`;
+  a.download = `${t('csv.file')}_${stamp}.csv`;
   document.body.append(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -364,7 +364,7 @@ function downloadCsv() {
 
 function toast(ev) {
   const box = $('#toast');
-  box.textContent = `Nuevo sismo: M${fmtMag(ev.mag)} · ${ev.place} · ${fmtTime(ev.t)}`;
+  box.textContent = t('toast', fmtMag(ev.mag), ev.place, fmtTime(ev.t));
   box.hidden = false;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => { box.hidden = true; }, 12000);
@@ -427,28 +427,58 @@ function startLive() {
 
 function setupReference() {
   const sel = $('#ref-select');
-  for (const r of REFERENCES) sel.append(new Option(r.name, r.id));
-  sel.append(new Option('Mi ubicación', 'me'));
+  fillReferenceOptions();
   sel.addEventListener('change', () => {
     if (sel.value !== 'me') {
-      state.ref = { ...REFERENCES.find((r) => r.id === sel.value) };
+      state.ref = localRef(REFERENCES.find((r) => r.id === sel.value));
       scheduleRender();
       return;
     }
     if (!navigator.geolocation) { sel.value = state.ref.id; return; }
-    setText('#ref-note', 'Buscando tu ubicación…');
+    setText('#ref-note', t('ref.locating'));
     navigator.geolocation.getCurrentPosition((pos) => {
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       // Use the Panama City calibration inside the metro area; the plain model elsewhere.
       const near = epicentralKm(lat, lon, REFERENCES[0].lat, REFERENCES[0].lon) < 35;
-      state.ref = { id: 'me', name: 'tu ubicación', lat, lon, siteAdjust: near ? REFERENCES[0].siteAdjust : 0 };
-      setText('#ref-note', 'Tu ubicación se usa solo en este navegador; no se envía a ningún servidor.');
+      state.ref = { id: 'me', name: t('ref.meName'), lat, lon, siteAdjust: near ? REFERENCES[0].siteAdjust : 0 };
+      setText('#ref-note', t('ref.private'));
       scheduleRender();
     }, () => {
       sel.value = state.ref.id;
-      setText('#ref-note', 'No se pudo leer tu ubicación.');
+      setText('#ref-note', t('ref.locFail'));
     }, { maximumAge: 600000, timeout: 15000 });
   });
+}
+
+/** A reference point with its name in the page's language. */
+function localRef(r) {
+  const base = REFERENCES.find((x) => x.id === r.id) || r;
+  return { ...base, name: localName(base) };
+}
+
+function fillReferenceOptions() {
+  const sel = $('#ref-select');
+  const value = sel.value;
+  sel.replaceChildren(...REFERENCES.map((r) => new Option(localName(r), r.id)), new Option(t('ref.me'), 'me'));
+  if (value) sel.value = value;
+}
+
+/** Everything that holds text: fixed page text, place names in the data, map, table header. */
+function switchLanguage(l) {
+  if (l === lang()) return;
+  setLang(l);
+  applyStatic();
+  for (const ev of state.events.values()) upsert(ev);
+  state.ref = state.ref.id === 'me' ? { ...state.ref, name: t('ref.meName') } : localRef(state.ref);
+  fillReferenceOptions();
+  $('#events thead tr').replaceChildren();
+  map.relabel();
+  if (state.live !== 'open' || !state.loaded) renderStatus();
+  scheduleRender();
+}
+
+function setupLanguage() {
+  document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => switchLanguage(b.dataset.lang)));
 }
 
 function setupPre() {
@@ -472,7 +502,11 @@ new ResizeObserver(() => {
 onThemeChange(() => { map.restyle(); scheduleRender(); });
 setInterval(scheduleRender, 60000); // keeps "hace N min" and the live time current
 
+state.ref = localRef(state.ref);
+applyStatic();
 map.init();
+map.relabel();
+setupLanguage();
 setupReference();
 setupPre();
 setupTable();
