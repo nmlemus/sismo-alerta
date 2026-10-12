@@ -54,7 +54,8 @@ const check = (ok, msg) => { if (!ok) failures.push(msg); console.log(`${ok ? 'o
 const browser = await chromium.launch();
 for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 390, height: 844 }]) {
   // Spanish browser; English is checked below with the ES/EN switch.
-  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: vp.name === 'mobile' ? 'dark' : 'light', locale: 'es-PA' });
+  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: vp.name === 'mobile' ? 'dark' : 'light', locale: 'es-PA', hasTouch: vp.name === 'mobile' });
+  await page.context().route(/eventdetails\.html/, (route) => route.fulfill({ contentType: 'text/html', body: '<title>EMSC</title>' }));
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -115,6 +116,30 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check(/Sismo principal.*vie 9 oct.*lun 12 oct/.test(await page.textContent('#map-legend')), `${vp.name}: day legend on the map`);
   check((await page.locator('#legend-timeline span').count()) >= 5, `${vp.name}: day legend on the timeline`);
   check((await page.locator('#legend-intensity .sw').count()) >= 5, `${vp.name}: intensity legend`);
+  // chart dots open the EMSC page: a click goes there, a tap pins a tooltip with the link
+  await page.locator('#chart-timeline').scrollIntoViewIfNeeded();
+  const mainDot = await page.locator('#chart-timeline circle.dot.main').boundingBox();
+  const at = { x: mainDot.x + mainDot.width / 2, y: mainDot.y + mainDot.height / 2 };
+  if (vp.name === 'mobile') {
+    await page.touchscreen.tap(at.x, at.y);
+    await page.waitForTimeout(200);
+    const href = await page.locator('#chart-timeline .tip.pinned a').getAttribute('href').catch(() => '');
+    check(/eventdetails\.html\?unid=20261009_0000264/.test(href), `${vp.name}: tapping a dot pins a link to its EMSC page (${href})`);
+    await page.locator('h1').click();
+    check((await page.locator('#chart-timeline .tip.pinned').count()) === 0, `${vp.name}: tapping elsewhere closes it`);
+  } else {
+    await page.mouse.move(at.x, at.y);
+    check((await page.textContent('#chart-timeline .tip')).includes('EMSC'), `${vp.name}: tooltip says the dot opens EMSC`);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), page.mouse.click(at.x, at.y)]);
+    await popup.waitForLoadState('domcontentloaded');
+    check(/eventdetails\.html\?unid=20261009_0000264/.test(popup.url()), `${vp.name}: clicking a dot opens its EMSC page (${popup.url()})`);
+    await popup.close();
+    await page.locator('#chart-intensity').scrollIntoViewIfNeeded();
+    const iDot = await page.locator('#chart-intensity circle.dot').last().boundingBox();
+    const [p2] = await Promise.all([page.waitForEvent('popup'), page.mouse.click(iDot.x + iDot.width / 2, iDot.y + iDot.height / 2)]);
+    check(p2.url().includes('eventdetails.html?unid='), `${vp.name}: intensity chart dots open EMSC too`);
+    await p2.close();
+  }
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
   const csv = readFileSync(await download.path(), 'utf8');
   check(csv.trim().split('\n').length === 307 && csv.includes('ficha_emsc'), `${vp.name}: CSV has 306 events + header`);

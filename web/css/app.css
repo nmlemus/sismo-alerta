@@ -162,6 +162,9 @@ path.pulse { animation: pulse 1.6s ease-out infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 6px 10px; font-size: 12px; max-width: 19rem; opacity: 0; z-index: 5; }
 .tip .tip-h { color: var(--ink-2); }
+.tip .tip-hint { color: var(--link); margin-top: 2px; }
+.tip.pinned { pointer-events: auto; }
+.tip a { display: inline-block; margin-top: 4px; padding: 4px 0; font-weight: 600; }
 
 .refhead, .tablehead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
 .tablehead h2 { margin-right: auto; }

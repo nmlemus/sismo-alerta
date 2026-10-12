@@ -4,6 +4,7 @@
 import { MMI_COLORS, ROMAN, describeMmi, mmiAww2014, mmiLabel, mmiLevel } from './intensity.js';
 import { fmtInt, fmtMag, fmtTime, tickLabel, wall } from './format.js';
 import { token } from './theme.js';
+import { emscLink } from './emsc.js';
 import { localName, t } from './i18n.js';
 
 const d3 = globalThis.d3;
@@ -31,7 +32,10 @@ export function tooltip(el) {
       tip.selectAll('*').remove();
       lines.forEach((l, i) => {
         const row = tip.append('div').attr('class', i === 0 ? 'tip-h' : null);
-        if (Array.isArray(l)) { row.append('i').attr('class', 'sw').style('background', l[0]); row.append('span').text(l[1]); } else row.text(l);
+        if (Array.isArray(l)) { row.append('i').attr('class', 'sw').style('background', l[0]); row.append('span').text(l[1]); }
+        else if (l && l.href) row.append('a').attr('href', l.href).attr('target', '_blank').attr('rel', 'noopener').text(l.text);
+        else if (l && l.hint) row.attr('class', 'tip-hint').text(l.hint);
+        else row.text(l);
       });
       tip.style('opacity', 1);
       const n = tip.node(), tw = n.offsetWidth, th = n.offsetHeight, W = el.clientWidth;
@@ -41,7 +45,9 @@ export function tooltip(el) {
       if (top < 0) top = y + 14;
       tip.style('left', `${Math.max(0, left)}px`).style('top', `${top}px`);
     },
-    hide() { tip.style('opacity', 0); },
+    hide() { tip.style('opacity', 0).classed('pinned', false); },
+    /** Keep it open and clickable (touch screens, where there is no hover). */
+    pin() { tip.classed('pinned', true); },
   };
 }
 
@@ -72,18 +78,43 @@ function barPath(x, y, w, h, r = 4) {
   return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
 }
 
-function nearestHover(el, svg, pts, onShow) {
+/**
+ * Tooltip for the point nearest the pointer. With linkOf, each point opens a page:
+ * a mouse click goes straight there; a tap (no hover on touch screens) pins the
+ * tooltip with the link inside it.
+ */
+function nearestHover(el, svg, pts, onShow, linkOf) {
   const tip = tooltip(el);
   const ring = svg.append('circle').attr('class', 'hover-ring').attr('opacity', 0);
   const del = d3.Delaunay.from(pts.map((p) => [p.x, p.y]));
   const W = Number(svg.attr('width'));
-  svg.on('pointermove', (ev) => {
-    const [px, py] = d3.pointer(ev);
-    const p = pts[del.find(px, py)];
+  let pinned = false, pointerType = 'mouse';
+  const nearest = (ev) => { const [px, py] = d3.pointer(ev); return pts[del.find(px, py)]; };
+  const show = (p, withLink) => {
     ring.attr('cx', p.x).attr('cy', p.y).attr('r', p.r + 3).attr('opacity', 1);
     const s = el.clientWidth / W;
-    tip.show(onShow(p.d), p.x * s, p.y * s);
-  }).on('pointerleave', () => { tip.hide(); ring.attr('opacity', 0); });
+    const lines = onShow(p.d);
+    if (linkOf) lines.push(withLink ? { href: linkOf(p.d), text: t('q.link') } : { hint: t('tip.click') });
+    tip.show(lines, p.x * s, p.y * s);
+  };
+  const unpin = () => { pinned = false; tip.hide(); ring.attr('opacity', 0); };
+  svg.on('pointerdown', (ev) => { pointerType = ev.pointerType || 'mouse'; })
+    .on('pointermove', (ev) => { if (!pinned && ev.pointerType !== 'touch') show(nearest(ev), false); })
+    .on('pointerleave', () => { if (!pinned) unpin(); });
+  if (!linkOf) {
+    // Without links, a tap just shows the tooltip.
+    svg.on('click', (ev) => { if (pointerType === 'touch') show(nearest(ev), false); });
+    return;
+  }
+  svg.style('cursor', 'pointer').on('click', (ev) => {
+    const p = nearest(ev);
+    if (pointerType !== 'touch') { window.open(linkOf(p.d), '_blank', 'noopener'); return; }
+    pinned = true;
+    show(p, true);
+    tip.pin();
+    ev.stopPropagation();
+  });
+  document.addEventListener('click', (ev) => { if (pinned && !el.contains(ev.target)) unpin(); });
 }
 
 /**
@@ -123,7 +154,7 @@ export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, p
       .text(t('tl.bigLbl', fmtMag(big.mag)));
   }
   nearestHover(el, svg, all.map((d) => ({ d, x: x(wall(d.t)), y: y(d.mag), r: radiusFor(d.mag) })),
-    (d) => [fmtTime(d.t), `M${fmtMag(d.mag)} (${d.magType}) · ${d.depth} km · ${d.agency}`, d.place + (d.t < main.t ? t('tip.beforeMain') : '')]);
+    (d) => [fmtTime(d.t), `M${fmtMag(d.mag)} (${d.magType}) · ${d.depth} km · ${d.agency}`, d.place + (d.t < main.t ? t('tip.beforeMain') : '')], emscLink);
 }
 
 /** Legend items shared by the timeline (and the same colors as the map). */
@@ -268,7 +299,7 @@ export function drawIntensity(el, { rows, ref }) {
     .attr('class', 'dot mmi').attr('fill', (r) => MMI_COLORS[mmiLevel(r.mmi)])
     .attr('cx', (r) => x(wall(r.ev.t))).attr('cy', (r) => y(r.mmi)).attr('r', (r) => radiusFor(r.ev.mag));
   nearestHover(el, svg, rows.map((r) => ({ d: r, x: x(wall(r.ev.t)), y: y(r.mmi), r: radiusFor(r.ev.mag) })),
-    (r) => [fmtTime(r.ev.t), t('int.tip', fmtMag(r.ev.mag), Math.round(r.km), localName(ref)), t('int.est', describeMmi(r.mmi)), r.ev.place]);
+    (r) => [fmtTime(r.ev.t), t('int.tip', fmtMag(r.ev.mag), Math.round(r.km), localName(ref)), t('int.est', describeMmi(r.mmi)), r.ev.place], (r) => emscLink(r.ev));
 }
 
 /**
