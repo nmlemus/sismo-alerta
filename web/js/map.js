@@ -1,8 +1,12 @@
-// Leaflet map of the sequence with a time slider and playback.
+// Leaflet map of the sequence with a time slider and playback. Epicenters are
+// colored by age relative to the moment shown (USGS convention: last hour, day,
+// week, older), on a one-hue ramp validated for light and dark mode.
 
-import { PLACES, PLAY_SECONDS, RECENT_HOURS, TILES, VIEWS } from './config.js';
-import { DAY_COLORS, MAIN_COLOR, OTHER_COLOR, fmtInt, fmtMag, fmtTime } from './format.js';
+import { AGE_CLASSES, PLACES, PLAY_SECONDS, TILES, VIEWS } from './config.js';
+import { fmtInt, fmtMag, fmtTime } from './format.js';
 import { radiusFor } from './charts.js';
+import { ageColors, token } from './theme.js';
+import { emscLink } from './emsc.js';
 
 const L = globalThis.L;
 const H = 3600e3;
@@ -14,12 +18,19 @@ function el(tag, cls, text) {
   return n;
 }
 
-function quakeTooltip(ev, note) {
+function quakeCard(ev, note, withLink) {
   const box = el('div', 'qtip');
   box.append(el('div', 'tip-h', fmtTime(ev.t)));
   box.append(el('div', null, `M${fmtMag(ev.mag)} (${ev.magType}) · ${ev.depth} km de profundidad`));
   box.append(el('div', null, ev.place));
   box.append(el('div', 'muted', `Localizado por ${ev.agency}${note ? ` · ${note}` : ''}`));
+  if (withLink) {
+    const a = el('a', null, 'Ver ficha en EMSC ↗');
+    a.href = emscLink(ev);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    box.append(a);
+  }
   return box;
 }
 
@@ -58,8 +69,8 @@ export class QuakeMap {
     map.createPane('quakes').style.zIndex = 450;
     map.createPane('labels').style.zIndex = 460;
     const z = this.zone;
-    L.rectangle([[z.minLat, z.minLon], [z.maxLat, z.maxLon]], {
-      color: '#6b7280', weight: 1, dashArray: '4 4', fill: false, interactive: false,
+    this.zoneRect = L.rectangle([[z.minLat, z.minLon], [z.maxLat, z.maxLon]], {
+      weight: 1, dashArray: '4 4', fill: false, interactive: false,
     }).addTo(map);
     this.otherLayer = L.layerGroup().addTo(map);
     this.quakeLayer = L.layerGroup().addTo(map);
@@ -86,9 +97,8 @@ export class QuakeMap {
   }
 
   /** Rebuild markers for new data. */
-  setData({ main, seq, others, dayIndex, days, ref, now }) {
+  setData({ main, seq, others, ref, now }) {
     this.main = main;
-    this.dayIndex = dayIndex;
     this.now = now;
     this.T = Math.max(1, now - main.t.getTime());
     const all = [
@@ -97,15 +107,18 @@ export class QuakeMap {
       ...others.map((ev) => ({ ev, kind: 'other' })),
     ];
     const seen = new Set();
-    // Big ones first so small markers stay clickable on top.
+    // Big ones first so small markers stay on top and clickable.
     for (const { ev, kind } of all.sort((a, b) => b.ev.mag - a.ev.mag)) {
       seen.add(ev.id);
       const prev = this.markers.get(ev.id);
       const sig = `${ev.lat},${ev.lon},${ev.mag},${kind},${ev.place}`;
       if (prev && prev.sig === sig) { prev.ev = ev; continue; }
       if (prev) (prev.kind === 'other' ? this.otherLayer : this.quakeLayer).removeLayer(prev.marker);
-      const marker = L.circleMarker([ev.lat, ev.lon], { pane: 'quakes', radius: radiusFor(ev.mag), weight: 1 });
-      marker.bindTooltip(() => quakeTooltip(ev, kind === 'other' ? 'fuera de la zona de réplicas' : kind === 'main' ? 'sismo principal' : ''), { direction: 'top', offset: [0, -4] });
+      const note = kind === 'other' ? 'fuera de la zona de réplicas' : kind === 'main' ? 'sismo principal' : '';
+      const marker = L.circleMarker([ev.lat, ev.lon], { pane: 'quakes', radius: radiusFor(ev.mag) + (kind === 'main' ? 2 : 0), weight: 1 });
+      marker.bindTooltip(() => quakeCard(ev, note, false), { direction: 'top', offset: [0, -4] });
+      marker.bindPopup(() => quakeCard(ev, note, true));
+      if (kind === 'main') marker.bindTooltip(`M${fmtMag(ev.mag)}`, { permanent: true, direction: 'right', className: 'main-label', offset: [8, 0] });
       this.markers.set(ev.id, { marker, ev, kind, sig, shown: false, key: '' });
     }
     for (const [id, m] of this.markers) {
@@ -115,31 +128,33 @@ export class QuakeMap {
       }
     }
     this.setRef(ref);
-    this.legend(days);
+    this.legend();
     this.render();
   }
 
   setRef(ref) {
     if (this.refMarker) this.map.removeLayer(this.refMarker);
     this.refMarker = L.marker([ref.lat, ref.lon], {
-      pane: 'labels', keyboard: false, title: `Referencia: ${ref.name}`,
+      pane: 'labels', keyboard: false, title: `Punto de referencia: ${ref.name}`,
       icon: L.divIcon({ className: 'refpin', html: el('span', null, '◆'), iconSize: [16, 16] }),
     }).addTo(this.map);
   }
 
-  colorOf(m) {
-    if (m.kind === 'main') return MAIN_COLOR;
-    if (m.kind === 'other') return OTHER_COLOR;
-    return DAY_COLORS[this.dayIndex(m.ev) % DAY_COLORS.length];
+  /** Re-read theme colors (light/dark switch) and restyle everything. */
+  restyle() {
+    for (const m of this.markers.values()) m.key = '';
+    this.legend();
+    this.render();
   }
 
-  /** Show events up to the current time; ring the ones from the last RECENT_HOURS. */
+  /** Show events up to the current time, colored by their age at that time. */
   render() {
     if (!this.main) return;
     const t0 = this.main.t.getTime();
     const tNow = this.t == null ? this.now : t0 + this.t;
-    const recentFrom = tNow - RECENT_HOURS * H;
-    const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#111';
+    const ages = ageColors();
+    const ink = token('--ink'), surface = token('--surface'), muted = token('--muted');
+    this.zoneRect.setStyle({ color: muted });
     let n = 0;
     for (const m of this.markers.values()) {
       const time = m.ev.t.getTime();
@@ -151,18 +166,17 @@ export class QuakeMap {
       }
       if (!visible) continue;
       if (m.kind === 'seq') n++;
-      const recent = m.kind !== 'other' && time > recentFrom;
-      const key = `${recent}|${fg}`;
-      if (key !== m.key) {
-        const c = this.colorOf(m);
-        m.marker.setStyle({
-          color: recent ? fg : c, weight: recent ? 1.6 : 1, fillColor: c,
-          fillOpacity: m.kind === 'other' ? 0.35 : recent || m.kind === 'main' ? 0.85 : 0.5,
-          opacity: m.kind === 'other' ? 0.6 : 1,
-        });
-        m.key = key;
-      }
+      const ageH = (tNow - time) / H;
+      const cls = AGE_CLASSES.findIndex((a) => ageH <= a.maxHours);
+      const key = `${m.kind}|${cls}|${ink}|${ages[cls]}`;
+      if (key === m.key) continue;
+      m.key = key;
+      if (m.kind === 'main') m.marker.setStyle({ color: surface, weight: 2, fillColor: ink, fillOpacity: 1 });
+      else if (m.kind === 'other') m.marker.setStyle({ color: muted, weight: 1.2, fillColor: muted, fillOpacity: 0.12 });
+      else m.marker.setStyle({ color: surface, weight: 1, fillColor: ages[cls], fillOpacity: 0.9 });
     }
+    // Recent events on top.
+    for (const m of this.markers.values()) if (m.shown && m.kind === 'seq' && (tNow - m.ev.t) / H <= 24) m.marker.bringToFront();
     const when = this.t == null ? `Ahora (${fmtTime(new Date(tNow))})` : fmtTime(new Date(tNow));
     this.timeLabel.textContent = `${when} · ${fmtInt(n)} réplica${n === 1 ? '' : 's'} hasta ese momento`;
     this.slider.value = String(this.t == null ? 1000 : Math.round((this.t / this.T) * 1000));
@@ -194,12 +208,12 @@ export class QuakeMap {
   /** A pulsing ring around a newly published event. */
   flash(ev) {
     const ring = L.circleMarker([ev.lat, ev.lon], {
-      pane: 'quakes', radius: radiusFor(ev.mag) + 4, color: MAIN_COLOR, weight: 2, fill: false, interactive: false, className: 'pulse',
+      pane: 'quakes', radius: radiusFor(ev.mag) + 4, color: token('--ink'), weight: 2, fill: false, interactive: false, className: 'pulse',
     }).addTo(this.fxLayer);
     setTimeout(() => this.fxLayer.removeLayer(ring), 60000);
   }
 
-  legend(days) {
+  legend() {
     const box = this.legendEl;
     box.replaceChildren();
     const add = (style, label) => {
@@ -209,10 +223,11 @@ export class QuakeMap {
       s.append(i, document.createTextNode(label));
       box.append(s);
     };
-    add({ background: MAIN_COLOR }, 'Sismo principal');
-    days.forEach((d, i) => add({ background: DAY_COLORS[i % DAY_COLORS.length] }, d));
-    add({ border: '2px solid var(--fg)' }, `Últimas ${RECENT_HOURS} h del momento mostrado`);
-    add({ background: OTHER_COLOR }, 'Fuera de la zona de réplicas (recuadro)');
-    add({ background: 'var(--accent)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, 'Punto de referencia');
+    const ages = ageColors();
+    box.append(el('span', 'legend-title', 'Antigüedad respecto al momento mostrado:'));
+    AGE_CLASSES.forEach((a, i) => add({ background: ages[i] }, a.label));
+    add({ background: 'var(--ink)' }, 'Sismo principal');
+    add({ border: '1.5px solid var(--muted)', background: 'transparent' }, 'Fuera de la zona de réplicas (recuadro)');
+    add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, 'Punto de referencia');
   }
 }

@@ -1,0 +1,14 @@
+# Columns: ZIP/Location,CDI,No. of responses,Hypocentral distance,Latitude,Longitude,Suspect?,Standard deviation,City,State[,cityid]
+"Atencingo::Puebla::Mexico",7.9,1,2281,18.5200,-98.6000,0,0.330,"Atencingo","",city_2009:::85671
+"Macaracas::Los Santos::Panama",7.9,1,32,7.7300,-80.5400,0,0.330,"Macaracas","",city_2009:::89789
+"Las Minas::Herrera::Panama",7.5,6,26,7.8000,-80.7400,0,0.285,"Las Minas","",city_2009:::89754
+"Penonomé::Coclé::Panama",7.2,6,112,8.5100,-80.3600,0,0.285,"Penonomé","",city_2009:::89715
+"Las Tablas::Los Santos::Panama",6.6,7,58,7.7600,-80.2800,0,0.277,"Las Tablas","",city_2009:::89785
+"Chitré::Herrera::Panama",6.6,52,58,7.9700,-80.4200,0,0.119,"Chitré","",city_2009:::89752
+"Santiago::Veraguas::Panama",6.2,43,62,8.1000,-80.9700,0,0.132,"Santiago","",city_2009:::89873
+"Santiago::Nuevo León::Mexico",7.5,1,2857,25.4100,-100.1400,0,0.330,"Santiago","",city_2009:::85545
+"David::Chiriquí::Panama",6.1,21,206,8.4400,-82.4300,0,0.194,"David","",city_2009:::89646
+"Colón::Colón::Panama",5.4,6,218,9.3600,-79.9000,0,0.285,"Colón","",city_2009:::89722
+"San Miguelito::Panamá::Panama",5.2,160,212,9.0300,-79.5000,0,0.090,"San Miguelito","",city_2009:::89846
+"Panamá::Panamá::Panama",5.1,169,205,8.9700,-79.5300,0,0.090,"Panamá","",city_2009:::89838
+"32405",5.3,1,2555,30.1981,-85.6584,0,0.330,"Panama City","FL"

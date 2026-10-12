@@ -70,6 +70,8 @@ Es un sitio estático, sin paso de compilación, en `index.html`, `js/` y `css/`
 - **En vivo:** se conecta al WebSocket del EMSC y agrega cada sismo nuevo segundos después de que se publica.
 - **Respaldo:** consulta el catálogo cada 2 minutos por si se cae la conexión.
 
+Además lee del USGS los reportes "Did You Feel It?" y el pronóstico oficial de réplicas del sismo principal (`SEQUENCE.usgsEventId`), y permite descargar la tabla en CSV con un enlace a la ficha de cada sismo en el EMSC. Los colores siguen una paleta validada para daltonismo, con pasos propios para modo claro y oscuro: azul en un solo tono para la antigüedad de los sismos y la escala de colores de intensidad del USGS (ShakeMap).
+
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
 
 **Probar en local**

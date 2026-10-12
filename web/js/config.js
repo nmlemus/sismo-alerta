@@ -9,6 +9,8 @@ export const SEQUENCE = {
   // Wider area drawn on the map (events outside the zone appear grey).
   region: { minLat: 5.0, maxLat: 10.0, minLon: -84.0, maxLon: -77.0 },
   minMag: 2.5,
+  // USGS id of the mainshock: "Did You Feel It?" reports and the official aftershock forecast.
+  usgsEventId: 'us6000u18k',
 };
 
 export const EMSC = {
@@ -65,5 +67,11 @@ export const VIEWS = {
 // https://carto.com/basemaps/apikey (non-commercial: 5M tiles/month) and paste it here.
 export const TILES = { cartoKey: '' };
 
-export const RECENT_HOURS = 6; // events this recent get a ring on the map
+// Age classes for the map, newest first (same convention as USGS real-time maps).
+export const AGE_CLASSES = [
+  { label: 'Última hora', maxHours: 1 },
+  { label: 'Último día', maxHours: 24 },
+  { label: 'Última semana', maxHours: 24 * 7 },
+  { label: 'Más de una semana', maxHours: Infinity },
+];
 export const PLAY_SECONDS = 24; // how long the full playback takes

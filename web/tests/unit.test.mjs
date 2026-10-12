@@ -61,3 +61,38 @@ test('fetchSince pages past the 300-event limit without duplicates', async () =>
   assert.equal(new Set(evs.map((e) => e.id)).size, all.length);
   assert.ok(calls >= 2 && calls <= 3, `calls=${calls}`);
 });
+
+// ---------------------------------------------------------------- USGS + CSV
+import { buildCsv } from '../js/csv.js';
+import { parseDyfi, parseForecast } from '../js/usgs.js';
+
+const read = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
+
+test('DYFI keeps only Panamanian towns, with their reports', () => {
+  const rows = parseDyfi(read('usgs_cdi_zip.txt'));
+  assert.equal(rows.length, 10);
+  const pty = rows.find((r) => r.name === 'Panamá');
+  assert.deepEqual([pty.cdi, pty.n, pty.hypoKm], [5.1, 169, 205]);
+  assert.ok(!rows.some((r) => r.name === 'Atencingo' || r.name === '32405'));
+});
+
+test('USGS forecast windows and magnitude bins', () => {
+  const f = parseForecast(JSON.parse(read('usgs_forecast.json')));
+  assert.deepEqual(f.windows.map((w) => w.label), ['Próximo día', 'Próxima semana', 'Próximo mes', 'Próximo año']);
+  const week = f.windows[1];
+  assert.equal(week.bins[5].p, 0.9365);
+  assert.deepEqual([week.bins[5].min, week.bins[5].max], [0, 11]);
+  assert.equal(week.aboveMain.mag, 7.7);
+  assert.equal(f.created.toISOString(), '2026-10-12T15:55:29.045Z');
+});
+
+test('CSV export escapes text and links each event to EMSC', () => {
+  const ev = { id: '20261009_0000264', t: new Date('2026-10-09T17:56:07Z'), lat: 7.5794, lon: -80.7741, depth: 15, mag: 7.7, magType: 'mw', agency: 'EMSC', place: '26 km al SE de Mariato, "costa"' };
+  const csv = buildCsv([{ ev, km: 208.4, mmi: 5.23 }], { name: 'Ciudad de Panamá' }, () => '9 oct, 12:56 p. m.');
+  const [head, row] = csv.trim().split('\n');
+  assert.ok(head.startsWith('id,hora_utc,hora_panama'));
+  assert.ok(head.includes('intensidad_estimada_Ciudad de Panamá'));
+  assert.ok(row.includes('"26 km al SE de Mariato, ""costa"""'));
+  assert.ok(row.includes(',208,5.2,https://www.seismicportal.eu/eventdetails.html?unid=20261009_0000264'));
+  assert.ok(row.includes('"9 oct, 12:56 p. m."'));
+});

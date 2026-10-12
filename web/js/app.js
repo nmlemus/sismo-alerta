@@ -1,11 +1,14 @@
 // Page logic: loads the catalog, keeps it live, derives the sequence and redraws.
 
 import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
-import { LiveFeed, fetchSince, fetchUpdated } from './emsc.js';
+import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
-import { ago, fmtClock, fmtDay, fmtInt, fmtMag, fmtRate, fmtTime } from './format.js';
-import { drawBands, drawIntensity, drawTimeline, drawWindows } from './charts.js';
+import { ago, fmtClock, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
+import { drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
+import { buildCsv } from './csv.js';
+import { fetchUsgs } from './usgs.js';
+import { onThemeChange } from './theme.js';
 
 const $ = (sel) => document.querySelector(sel);
 const H = 3600e3;
@@ -19,6 +22,9 @@ const state = {
   ref: { ...REFERENCES[0] },
   sort: { key: 't', dir: -1 },
   search: '',
+  usgs: null, // { dyfi, dyfiCount, forecast, url } once loaded
+  usgsError: false,
+  rows: [],
 };
 
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
@@ -39,14 +45,7 @@ function derive() {
   const main = zone.reduce((a, b) => (b.mag > a.mag ? b : a));
   const seq = zone.filter((e) => e.t > main.t).sort((a, b) => a.t - b.t);
   const others = all.filter((e) => !inBox(e, SEQUENCE.zone) && e.t >= main.t);
-  const days = [];
-  const dayOf = new Map();
-  for (const e of [main, ...seq]) {
-    const d = fmtDay(e.t);
-    if (!dayOf.has(d)) { dayOf.set(d, days.length); days.push(d); }
-  }
-  const dayIndex = (e) => dayOf.get(fmtDay(e.t)) ?? 0;
-  return { main, seq, others, days, dayIndex };
+  return { main, seq, others };
 }
 
 function stats({ main, seq }, now) {
@@ -66,12 +65,26 @@ function stats({ main, seq }, now) {
   }));
   return {
     span, big, windows, bands,
+    m5: seq.filter((e) => e.mag >= 5).length,
+    m6: seq.filter((e) => e.mag >= 6).length,
     rateFirst12: first12.length / Math.min(12, span),
     rateLast12: last12.length / Math.min(12, span),
     m4First12: first12.filter((e) => e.mag >= 4).length / Math.min(12, span),
     m4Last12: last12.filter((e) => e.mag >= 4).length / Math.min(12, span),
     latest: seq[seq.length - 1] || null,
   };
+}
+
+/** The DYFI town that stands for the reference point (within 8 km), if any. */
+function dyfiFor(ref) {
+  const rows = state.usgs?.dyfi;
+  if (!rows?.length) return null;
+  let best = null, bestKm = Infinity;
+  for (const r of rows) {
+    const d = epicentralKm(r.lat, r.lon, ref.lat, ref.lon);
+    if (d < bestKm) { bestKm = d; best = r; }
+  }
+  return bestKm <= 8 ? best : null;
 }
 
 // ------------------------------------------------------------------ rendering
@@ -101,6 +114,12 @@ function renderStatus() {
   setText('#synced', state.lastSync ? `Datos al ${fmtClock(state.lastSync)}` : '');
 }
 
+function chart(sel, fn, opts) {
+  const node = $(sel);
+  node.classList.remove('skeleton');
+  fn(node, opts);
+}
+
 function render() {
   renderStatus();
   if (!state.loaded) return;
@@ -112,11 +131,11 @@ function render() {
   const { main, seq } = d;
   const ref = state.ref;
 
-  // headline + takeaway
+  // headline figures + takeaway
   setText('#main-mag', `M${fmtMag(main.mag)}`);
   setText('#main-when', `${fmtTime(main.t)} · ${main.place}`);
   setText('#n-after', fmtInt(seq.length));
-  setText('#n-after-sub', `en ${s.span < 48 ? `${Math.round(s.span)} horas` : `${(s.span / 24).toFixed(1)} días`} · M2.5 o más`);
+  setText('#n-after-sub', `en ${s.span < 48 ? `${Math.round(s.span)} horas` : `${(s.span / 24).toFixed(1)} días`} · M2.5 o más · ${fmtInt(s.m5)} de M5+, ${fmtInt(s.m6)} de M6+`);
   setText('#big-mag', s.big ? `M${fmtMag(s.big.mag)}` : '—');
   setText('#big-sub', s.big ? `${fmtTime(s.big.t)} · ${s.big.place}` : '');
   setText('#m4-rate', fmtRate(s.m4Last12));
@@ -124,40 +143,112 @@ function render() {
   setText('#last-ago', s.latest ? ago(s.latest.t, now) : '—');
   setText('#last-sub', s.latest ? `M${fmtMag(s.latest.mag)} · ${s.latest.place}` : '');
 
-  const take = [];
-  take.push(`Se han registrado ${fmtInt(seq.length)} réplicas desde el sismo principal del ${fmtTime(main.t)}`.replace(/\.?$/, '.'));
+  const take = [`Se han registrado ${fmtInt(seq.length)} réplicas desde el sismo principal del ${fmtTime(main.t)}`.replace(/\.?$/, '.')];
   if (s.span >= 24) {
     take.push(`Las fuertes (M4 o más) bajaron de ${fmtRate(s.m4First12)} a ${fmtRate(s.m4Last12)} por hora entre las primeras 12 horas y las últimas 12; el total, de ${fmtRate(s.rateFirst12)} a ${fmtRate(s.rateLast12)} por hora.`);
   }
   if (s.latest) take.push(`La más reciente: M${fmtMag(s.latest.mag)}, ${s.latest.place}, ${ago(s.latest.t, now)}.`);
   setText('#takeaway', take.join(' '));
 
-  // reference point
+  // reference point: reported (DYFI) when the town has reports, estimated always
   const rows = [main, ...seq].map((ev) => ({ ev, km: epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon), mmi: estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust) }));
+  state.rows = rows;
+  const mainRow = rows[0];
+  const reported = dyfiFor(ref);
+  setText('#ref-name', ref.name);
+  setText('#ref-reported', reported
+    ? `${ROMAN[mmiLevel(reported.cdi)]} (${reported.cdi.toFixed(1)}) según ${fmtInt(reported.n)} persona${reported.n === 1 ? '' : 's'} que lo reportaron al USGS en ${reported.name}`
+    : state.usgs ? 'sin reportes de la gente para este lugar' : state.usgsError ? 'no se pudieron cargar los reportes del USGS' : 'cargando reportes del USGS…');
+  setText('#ref-main', `${describeMmi(mainRow.mmi)} a ${Math.round(mainRow.km)} km del epicentro`);
   const day = rows.filter((r) => r.ev !== main && now - r.ev.t < 24 * H);
   const top = day.length ? day.reduce((a, b) => (b.mmi > a.mmi ? b : a)) : null;
-  const mainRow = rows[0];
-  setText('#ref-name', ref.name);
-  setText('#ref-main', `${describeMmi(mainRow.mmi)} a ${Math.round(mainRow.km)} km del epicentro`);
   setText('#ref-day', top ? `${describeMmi(top.mmi)} · M${fmtMag(top.ev.mag)}, ${ago(top.ev.t, now)}` : 'ninguna réplica en las últimas 24 h');
   const felt = rows.filter((r) => r.ev !== main && r.mmi >= 2.5).length;
   setText('#ref-felt', `${fmtInt(felt)} de ${fmtInt(seq.length)} réplicas probablemente se sintieron dentro de casa en ${ref.name}.`);
+  const badgeMmi = reported ? reported.cdi : mainRow.mmi;
   const badge = $('#ref-badge');
-  badge.textContent = ROMAN[mmiLevel(mainRow.mmi)];
-  badge.style.background = MMI_COLORS[mmiLevel(mainRow.mmi)];
+  badge.textContent = ROMAN[mmiLevel(badgeMmi)];
+  badge.style.background = MMI_COLORS[mmiLevel(badgeMmi)];
+  setText('#ref-badge-cap', reported ? 'reportado' : 'estimado');
 
   // charts
-  const opts = { seq, main, dayIndex: d.dayIndex, windows: s.windows, bands: s.bands, rows, ref };
-  for (const [sel, fn] of [['#chart-timeline', drawTimeline], ['#chart-windows', drawWindows], ['#chart-bands', drawBands], ['#chart-intensity', drawIntensity]]) {
-    const node = $(sel);
-    node.classList.remove('skeleton');
-    fn(node, opts);
-  }
-  map.setData({ main, seq, others: d.others, dayIndex: d.dayIndex, days: d.days, ref, now: Math.max(now, (s.latest || main).t.getTime()) });
+  const opts = { seq, main, now, windows: s.windows, bands: s.bands, rows, ref };
+  chart('#chart-timeline', drawTimeline, opts);
+  chart('#chart-windows', drawWindows, opts);
+  chart('#chart-cumulative', drawCumulative, opts);
+  chart('#chart-bands', drawBands, opts);
+  chart('#chart-intensity', drawIntensity, opts);
+  mmiLegend($('#legend-intensity'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
+  renderDyfi(main, reported);
+  renderForecast();
+  map.setData({ main, seq, others: d.others, ref, now: Math.max(now, (s.latest || main).t.getTime()) });
   renderTable(rows);
 }
 
-// ------------------------------------------------------------------ table
+function renderDyfi(main, reported) {
+  const node = $('#chart-dyfi');
+  const dyfi = state.usgs?.dyfi;
+  if (!dyfi?.length) {
+    node.classList.toggle('skeleton', !state.usgsError && !state.usgs);
+    node.replaceChildren();
+    if (state.usgsError || state.usgs) node.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'Los reportes del USGS no están disponibles en este momento.' }));
+    return;
+  }
+  node.classList.remove('skeleton');
+  drawDyfi(node, { dyfi, main, refRow: reported });
+  mmiLegend($('#legend-dyfi'), 3, 8);
+  const total = state.usgs.dyfiCount;
+  setText('#dyfi-count', total ? `${fmtInt(total)} reportes en total; aquí, ${fmtInt(dyfi.length)} lugares de Panamá.` : '');
+}
+
+function renderForecast() {
+  const box = $('#forecast');
+  const f = state.usgs?.forecast;
+  if (!f) {
+    box.replaceChildren(Object.assign(document.createElement('p'), {
+      className: 'muted',
+      textContent: state.usgs || state.usgsError ? 'El pronóstico del USGS no está disponible en este momento.' : 'Cargando el pronóstico del USGS…',
+    }));
+    return;
+  }
+  const wins = f.windows.filter((w) => ['1 Day', '1 Week', '1 Month'].includes(w.key));
+  const table = document.createElement('table');
+  table.className = 'fc';
+  const head = table.createTHead().insertRow();
+  head.append(Object.assign(document.createElement('th'), { textContent: '' }));
+  for (const w of wins) head.append(Object.assign(document.createElement('th'), { textContent: w.label, className: 'n' }));
+  const body = table.createTBody();
+  for (const mag of [5, 6, 7]) {
+    const tr = body.insertRow();
+    tr.append(Object.assign(document.createElement('th'), { textContent: `M${mag} o más`, scope: 'row' }));
+    for (const w of wins) {
+      const b = w.bins[mag];
+      const td = tr.insertCell();
+      td.className = 'n';
+      if (!b) { td.textContent = '—'; continue; }
+      const p = Object.assign(document.createElement('b'), { textContent: fmtPct(b.p) });
+      const range = b.max > 0 ? `${b.min}–${b.max} sismos` : 'ninguno probable';
+      td.append(p, Object.assign(document.createElement('div'), { className: 'muted', textContent: range }));
+    }
+  }
+  const week = f.windows.find((w) => w.key === '1 Week');
+  const parts = [table];
+  if (week?.aboveMain) {
+    parts.push(Object.assign(document.createElement('p'), {
+      textContent: `Probabilidad de un sismo igual o mayor que el principal (M${fmtMag(week.aboveMain.mag)}) en la próxima semana: ${fmtPct(week.aboveMain.p)}.`,
+    }));
+  }
+  const meta = document.createElement('p');
+  meta.className = 'muted';
+  meta.append(`Pronóstico oficial del USGS, emitido el ${fmtTime(f.created)}${f.next ? `; próxima actualización: ${fmtTime(f.next)}` : ''}. Cada celda: probabilidad de al menos un sismo de esa magnitud y número probable (rango del 95 %). `);
+  const a = Object.assign(document.createElement('a'), { textContent: 'Ver en el USGS ↗', target: '_blank', rel: 'noopener' });
+  a.href = `https://earthquake.usgs.gov/earthquakes/eventpage/${encodeURIComponent(SEQUENCE.usgsEventId)}/oaf/forecast`;
+  meta.append(a);
+  parts.push(meta);
+  box.replaceChildren(...parts);
+}
+
+// ------------------------------------------------------------------ table + CSV
 
 const COLS = [
   { key: 't', label: 'Hora (Panamá)', val: (r) => r.ev.t.getTime(), text: (r) => fmtTime(r.ev.t) },
@@ -168,6 +259,7 @@ const COLS = [
   { key: 'place', label: 'Lugar', val: (r) => r.ev.place, text: (r) => r.ev.place },
   { key: 'km', label: 'Distancia (km)', num: true, hide: true, val: (r) => r.km, text: (r) => String(Math.round(r.km)) },
   { key: 'mmi', label: 'Intensidad est.', val: (r) => r.mmi, text: (r) => describeMmi(r.mmi) },
+  { key: 'link', label: 'Ficha', nosort: true, val: () => 0, text: () => '' },
 ];
 
 function renderTable(rows) {
@@ -178,6 +270,7 @@ function renderTable(rows) {
       const th = document.createElement('th');
       if (c.num) th.classList.add('n');
       if (c.hide) th.classList.add('hide-s');
+      if (c.nosort) { th.append(Object.assign(document.createElement('span'), { className: 'th', textContent: c.label })); head.append(th); continue; }
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = c.label;
@@ -189,7 +282,7 @@ function renderTable(rows) {
       head.append(th);
     }
   }
-  [...head.children].forEach((th, i) => th.setAttribute('aria-sort', COLS[i].key === state.sort.key ? (state.sort.dir > 0 ? 'ascending' : 'descending') : 'none'));
+  [...head.children].forEach((th, i) => { if (!COLS[i].nosort) th.setAttribute('aria-sort', COLS[i].key === state.sort.key ? (state.sort.dir > 0 ? 'ascending' : 'descending') : 'none'); });
   const col = COLS.find((c) => c.key === state.sort.key);
   const q = state.search.trim().toLowerCase();
   const shown = rows
@@ -209,12 +302,30 @@ function renderTable(rows) {
         sw.style.background = MMI_COLORS[mmiLevel(r.mmi)];
         td.append(sw);
       }
-      td.append(document.createTextNode(c.text(r)));
+      if (c.key === 'link') {
+        const a = Object.assign(document.createElement('a'), { textContent: 'EMSC ↗', target: '_blank', rel: 'noopener', href: emscLink(r.ev) });
+        a.setAttribute('aria-label', `Ficha del sismo en EMSC (${fmtTime(r.ev.t)})`);
+        td.append(a);
+      } else {
+        td.append(document.createTextNode(c.text(r)));
+      }
       tr.append(td);
     }
     return tr;
   }));
   setText('#events-count', `${fmtInt(shown.length)} de ${fmtInt(rows.length)} sismos`);
+}
+
+function downloadCsv() {
+  if (!state.rows.length) return;
+  const blob = new Blob(['\ufeff', buildCsv(state.rows, state.ref, fmtTime)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '');
+  a.download = `sismos_panama_${stamp}.csv`;
+  document.body.append(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
 // ------------------------------------------------------------------ data
@@ -237,6 +348,16 @@ async function load() {
   } catch (e) {
     state.error = e;
     setTimeout(load, 30000);
+  }
+  scheduleRender();
+}
+
+async function loadUsgs() {
+  try {
+    state.usgs = await fetchUsgs(SEQUENCE.usgsEventId);
+    state.usgsError = false;
+  } catch {
+    state.usgsError = true;
   }
   scheduleRender();
 }
@@ -300,6 +421,7 @@ function setupReference() {
 
 function setupTable() {
   $('#events-search').addEventListener('input', (e) => { state.search = e.target.value; scheduleRender(); });
+  $('#csv').addEventListener('click', downloadCsv);
 }
 
 // Redraw on width changes only (height changes come from our own redraws).
@@ -311,6 +433,7 @@ new ResizeObserver(() => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(scheduleRender, 150);
 }).observe(document.body);
+onThemeChange(() => { map.restyle(); scheduleRender(); });
 setInterval(scheduleRender, 60000); // keeps "hace N min" and the live time current
 
 map.init();
@@ -318,5 +441,7 @@ setupReference();
 setupTable();
 renderStatus();
 load();
+loadUsgs();
 startLive();
 setInterval(poll, EMSC.pollSeconds * 1000);
+setInterval(loadUsgs, 30 * 60e3); // DYFI and the forecast change slowly

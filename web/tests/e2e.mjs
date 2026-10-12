@@ -71,6 +71,12 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
       });
     });
   }
+  await page.route(/earthquake\.usgs\.gov/, (route) => {
+    const url = route.request().url();
+    if (url.includes('cdi_zip.txt')) return route.fulfill({ contentType: 'text/plain', body: readFileSync(join(ROOT, 'tests/fixtures/usgs_cdi_zip.txt')) });
+    if (url.includes('forecast.json')) return route.fulfill({ contentType: 'application/json', body: readFileSync(join(ROOT, 'tests/fixtures/usgs_forecast.json')) });
+    return route.fulfill({ contentType: 'application/json', body: readFileSync(join(ROOT, 'tests/fixtures/usgs_event.json')) });
+  });
   let socket;
   await page.routeWebSocket(/seismicportal\.eu\/standing_order/, (ws) => { socket = ws; });
 
@@ -85,9 +91,22 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(vp.name === 'mobile' ? 1500 : 0);
   check((await page.locator('#map .leaflet-interactive').count()) > 300, `${vp.name}: map markers drawn`);
   check(tileZooms.length > 0 && Math.max(...tileZooms) >= 6, `${vp.name}: map zoomed to the region (tile zoom ${Math.max(...tileZooms)})`);
-  for (const id of ['#chart-timeline', '#chart-windows', '#chart-bands', '#chart-intensity']) {
+  await page.waitForSelector('#forecast table', { timeout: 10000 });
+  await page.waitForSelector('#chart-dyfi svg', { timeout: 10000 });
+  for (const id of ['#chart-timeline', '#chart-windows', '#chart-cumulative', '#chart-bands', '#chart-intensity', '#chart-dyfi']) {
     check((await page.locator(`${id} svg`).count()) === 1, `${vp.name}: ${id} drawn`);
   }
+  check((await page.locator('#forecast tbody tr').count()) === 3, `${vp.name}: forecast shows M5+, M6+, M7+`);
+  check((await page.textContent('#forecast')).includes('94 %'), `${vp.name}: forecast week M5+ probability`);
+  check((await page.textContent('#ref-reported')).includes('169 personas'), `${vp.name}: reported DYFI for Panama City (${await page.textContent('#ref-reported')})`);
+  check((await page.textContent('#ref-badge-cap')) === 'reportado', `${vp.name}: badge uses the reported value`);
+  check((await page.textContent('#n-after-sub')).includes('de M5+'), `${vp.name}: M5+/M6+ in the aftershock tile`);
+  check((await page.locator('#events a[href*="eventdetails.html?unid="]').count()) === 306, `${vp.name}: every row links to EMSC`);
+  check((await page.textContent('#map-legend')).includes('Última hora'), `${vp.name}: age legend`);
+  check((await page.locator('#legend-intensity .sw').count()) >= 5, `${vp.name}: intensity legend`);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
+  const csv = readFileSync(await download.path(), 'utf8');
+  check(csv.trim().split('\n').length === 307 && csv.includes('ficha_emsc'), `${vp.name}: CSV has 306 events + header`);
   if (OUT) { mkdirSync(OUT, { recursive: true }); await page.screenshot({ path: join(OUT, `${vp.name}.png`), fullPage: true }); }
 
   // playback

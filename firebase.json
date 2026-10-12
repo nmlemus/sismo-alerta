@@ -20,7 +20,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://basemaps.cartocdn.com; connect-src 'self' https://www.seismicportal.eu wss://www.seismicportal.eu; frame-ancestors 'none'; base-uri 'self'"
+            "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://basemaps.cartocdn.com; connect-src 'self' https://www.seismicportal.eu wss://www.seismicportal.eu https://earthquake.usgs.gov; frame-ancestors 'none'; base-uri 'self'"
           },
           {
             "key": "X-Content-Type-Options",

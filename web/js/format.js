@@ -37,7 +37,4 @@ export function ago(d, now = new Date()) {
 export const tickLabel = (d) => (d.getUTCHours() === 0 ? fmtDayWall(d) : d3.utcFormat('%-I %p')(d));
 const fmtDayWall = (d) => `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}`;
 
-// Colors per local day (index order), and the mainshock color.
-export const DAY_COLORS = ['#3b6fd8', '#e08a1e', '#16a394', '#8a5cd6', '#d24f8f', '#7f9a2a', '#2b9fc2', '#a8743f'];
-export const MAIN_COLOR = '#d7263d';
-export const OTHER_COLOR = '#9aa3ad';
+export const fmtPct = (p) => (p >= 0.995 ? '>99 %' : p < 0.01 ? '<1 %' : `${Math.round(p * 100)} %`);
