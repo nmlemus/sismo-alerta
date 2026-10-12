@@ -10,6 +10,15 @@ import { chromium } from 'playwright';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT = process.argv[2];
 const fixture = JSON.parse(readFileSync(join(ROOT, 'tests/fixtures/emsc_2026-10-09.json')));
+// The week before the mainshock: two events EMSC located in the zone (ids made up
+// for the test) and one elsewhere in the region.
+const preEvent = (id, time, lat, lon, mag) => ({ type: 'Feature', id, geometry: { type: 'Point', coordinates: [lon, lat, -10] },
+  properties: { unid: id, time, lastupdate: time, lat, lon, depth: 10, mag, magtype: 'm', auth: 'IGC', evtype: 'ke', flynn_region: 'PANAMA' } });
+fixture.features.push(
+  preEvent('PRE_1', '2026-10-03T06:49:01.0Z', 7.7158, -81.2937, 3.1),
+  preEvent('PRE_2', '2026-10-09T05:53:27.0Z', 7.554, -80.7438, 2.6),
+  preEvent('PRE_3', '2026-10-06T12:00:00.0Z', 8.5, -82.6, 3.0),
+);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json' };
 // Serve with the same Content-Security-Policy as production, so violations fail the test.
 const CSP = JSON.parse(readFileSync(join(ROOT, '../firebase.json'))).hosting.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
@@ -102,7 +111,8 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#ref-badge-cap')) === 'reportado', `${vp.name}: badge uses the reported value`);
   check((await page.textContent('#n-after-sub')).includes('de M5+'), `${vp.name}: M5+/M6+ in the aftershock tile`);
   check((await page.locator('#events a[href*="eventdetails.html?unid="]').count()) === 306, `${vp.name}: every row links to EMSC`);
-  check((await page.textContent('#map-legend')).includes('Última hora'), `${vp.name}: age legend`);
+  check(/Sismo principal.*vie 9 oct.*lun 12 oct/.test(await page.textContent('#map-legend')), `${vp.name}: day legend on the map`);
+  check((await page.locator('#legend-timeline span').count()) >= 5, `${vp.name}: day legend on the timeline`);
   check((await page.locator('#legend-intensity .sw').count()) >= 5, `${vp.name}: intensity legend`);
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
   const csv = readFileSync(await download.path(), 'utf8');
@@ -116,6 +126,21 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check(!mid.startsWith('Ahora'), `${vp.name}: playback moves the time (${mid})`);
   await page.click('#map-play');
   if (OUT && vp.name === 'desktop') await page.locator('#map-card').screenshot({ path: join(OUT, 'map-playback.png') });
+
+  // the week before the mainshock
+  const dotsBefore = await page.locator('#chart-timeline circle.dot').count();
+  const barsBefore = await page.locator('#chart-windows path.bar.s2').count();
+  await page.check('#show-pre');
+  await page.waitForTimeout(400);
+  check((await page.locator('#chart-timeline circle.dot').count()) === dotsBefore + 3, `${vp.name}: timeline adds the week before`);
+  check((await page.locator('#chart-windows path.bar.s2').count()) === barsBefore + 28, `${vp.name}: 6-hour bars add 28 windows before`);
+  check((await page.textContent('#pre-note')).includes('3 sismos en la región, 2 de ellos'), `${vp.name}: week-before note (${await page.textContent('#pre-note')})`);
+  await page.locator('#map-time').evaluate((n) => { n.value = '100'; n.dispatchEvent(new Event('input', { bubbles: true })); });
+  check((await page.textContent('#map-time-label')).includes('antes del sismo principal'), `${vp.name}: slider goes before the mainshock`);
+  if (OUT && vp.name === 'desktop') await page.screenshot({ path: join(OUT, 'pre-week.png'), fullPage: true });
+  await page.uncheck('#show-pre');
+  await page.waitForTimeout(300);
+  check((await page.locator('#chart-timeline circle.dot').count()) === dotsBefore, `${vp.name}: week before hidden again`);
 
   // a live event from the WebSocket
   const t = new Date(Date.now() - 60e3).toISOString();

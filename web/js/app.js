@@ -3,15 +3,17 @@
 import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
 import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
-import { ago, fmtClock, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
-import { drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
+import { ago, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
+import { dayLegend, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { fetchUsgs } from './usgs.js';
-import { onThemeChange } from './theme.js';
+import { dayPalette, onThemeChange } from './theme.js';
 
 const $ = (sel) => document.querySelector(sel);
 const H = 3600e3;
+// Load the week before too, so it can be shown on demand.
+const LOAD_START = new Date(Date.parse(SEQUENCE.start) - SEQUENCE.preDays * 24 * H);
 
 const state = {
   events: new Map(), // id -> event
@@ -25,6 +27,7 @@ const state = {
   usgs: null, // { dyfi, dyfiCount, forecast, url } once loaded
   usgsError: false,
   rows: [],
+  showPre: false,
 };
 
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
@@ -36,25 +39,42 @@ function upsert(ev) {
   return !prev;
 }
 
-/** Mainshock, aftershocks in the zone, everything else in the region. */
+/** Mainshock, aftershocks in the zone, everything else in the region, and the week before. */
 function derive() {
   const start = new Date(SEQUENCE.start).getTime();
-  const all = [...state.events.values()].filter((e) => e.t.getTime() >= start && inBox(e, SEQUENCE.region));
-  const zone = all.filter((e) => inBox(e, SEQUENCE.zone));
+  const all = [...state.events.values()].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
+  const zone = all.filter((e) => e.t.getTime() >= start && inBox(e, SEQUENCE.zone));
   if (!zone.length) return null;
   const main = zone.reduce((a, b) => (b.mag > a.mag ? b : a));
   const seq = zone.filter((e) => e.t > main.t).sort((a, b) => a.t - b.t);
   const others = all.filter((e) => !inBox(e, SEQUENCE.zone) && e.t >= main.t);
-  return { main, seq, others };
+  const pre = all.filter((e) => e.t < main.t && e !== main).sort((a, b) => a.t - b.t);
+  pre.forEach((e) => { e.inZone = inBox(e, SEQUENCE.zone); });
+  const days = [];
+  const dayOf = new Map();
+  for (const e of [main, ...seq]) {
+    const d = fmtDay(e.t);
+    if (!dayOf.has(d)) { dayOf.set(d, days.length); days.push(d); }
+  }
+  const dayIndex = (e) => dayOf.get(fmtDay(e.t)) ?? 0;
+  return { main, seq, others, pre, days, dayIndex };
 }
 
-function stats({ main, seq }, now) {
+function stats({ main, seq, pre }, now) {
   const hrs = (e) => (e.t - main.t) / H;
   const span = Math.max(1 / 60, (now - main.t) / H);
   const first12 = seq.filter((e) => hrs(e) < 12);
   const last12 = seq.filter((e) => hrs(e) >= span - 12);
   const big = seq.length ? seq.reduce((a, b) => (b.mag > a.mag ? b : a)) : null;
   const windows = [];
+  if (state.showPre) {
+    // Same 6-hour windows for the week before, inside the aftershock zone.
+    const preZone = pre.filter((e) => e.inZone);
+    for (let s = -SEQUENCE.preDays * 24; s < 0; s += 6) {
+      const w = preZone.filter((e) => hrs(e) >= s && hrs(e) < s + 6);
+      windows.push({ label: `${s}`, start: s, count: w.length, m4: w.filter((e) => e.mag >= 4).length, maxMag: w.length ? Math.max(...w.map((e) => e.mag)) : null });
+    }
+  }
   for (let s = 0; s < span; s += 6) {
     const w = seq.filter((e) => hrs(e) >= s && hrs(e) < s + 6);
     windows.push({ label: `${s}`, start: s, count: w.length, m4: w.filter((e) => e.mag >= 4).length, maxMag: w.length ? Math.max(...w.map((e) => e.mag)) : null });
@@ -90,7 +110,7 @@ function dyfiFor(ref) {
 // ------------------------------------------------------------------ rendering
 
 const map = new QuakeMap({
-  mapEl: $('#map'), playBtn: $('#map-play'), slider: $('#map-time'), timeLabel: $('#map-time-label'),
+  mapEl: $('#map'), playBtn: $('#map-play'), slider: $('#map-time'), ticks: $('#map-ticks'), timeLabel: $('#map-time-label'),
   viewBtns: [...document.querySelectorAll('[data-view]')], legendEl: $('#map-legend'), zone: SEQUENCE.zone,
 });
 
@@ -172,8 +192,17 @@ function render() {
   setText('#ref-badge-cap', reported ? 'reportado' : 'estimado');
 
   // charts
-  const opts = { seq, main, now, windows: s.windows, bands: s.bands, rows, ref };
+  const palette = dayPalette(d.days);
+  const opts = {
+    seq, main, now, windows: s.windows, bands: s.bands, rows, ref,
+    pre: d.pre, showPre: state.showPre, preDays: SEQUENCE.preDays, dayIndex: d.dayIndex, palette,
+  };
   chart('#chart-timeline', drawTimeline, opts);
+  dayLegend($('#legend-timeline'), opts);
+  const preZone = d.pre.filter((e) => e.inZone);
+  setText('#pre-note', state.showPre
+    ? `En los ${SEQUENCE.preDays} días anteriores hubo ${fmtInt(d.pre.length)} sismos en la región, ${fmtInt(preZone.length)} de ellos en la zona de réplicas${preZone.length ? ` (el último, ${ago(preZone[preZone.length - 1].t, main.t).replace('hace ', '')} antes del sismo principal)` : ''}.`
+    : '');
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
   chart('#chart-bands', drawBands, opts);
@@ -181,7 +210,10 @@ function render() {
   mmiLegend($('#legend-intensity'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
   renderDyfi(main, reported);
   renderForecast();
-  map.setData({ main, seq, others: d.others, ref, now: Math.max(now, (s.latest || main).t.getTime()) });
+  map.setData({
+    main, seq, others: d.others, pre: d.pre, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
+    now: Math.max(now, (s.latest || main).t.getTime()),
+  });
   renderTable(rows);
 }
 
@@ -340,7 +372,7 @@ function toast(ev) {
 
 async function load() {
   try {
-    const evs = await fetchSince(SEQUENCE.start, SEQUENCE.region, SEQUENCE.minMag);
+    const evs = await fetchSince(LOAD_START, SEQUENCE.region, SEQUENCE.minMag);
     evs.forEach(upsert);
     state.loaded = true;
     state.error = null;
@@ -366,7 +398,7 @@ async function poll() {
   if (!state.loaded) return;
   const since = new Date(state.lastSync.getTime() - 5 * 60e3);
   try {
-    const evs = await fetchUpdated(since, SEQUENCE.start, SEQUENCE.region, SEQUENCE.minMag);
+    const evs = await fetchUpdated(since, LOAD_START, SEQUENCE.region, SEQUENCE.minMag);
     evs.forEach(upsert);
     state.lastSync = new Date();
     scheduleRender();
@@ -377,7 +409,7 @@ function startLive() {
   const feed = new LiveFeed({
     onStatus: (s) => { state.live = s; scheduleRender(); },
     onEvent: (ev) => {
-      if (ev.t < new Date(SEQUENCE.start) || !inBox(ev, SEQUENCE.region) || ev.mag < SEQUENCE.minMag) return;
+      if (ev.t < LOAD_START || !inBox(ev, SEQUENCE.region) || ev.mag < SEQUENCE.minMag) return;
       const isNew = upsert(ev);
       state.lastSync = new Date();
       if (isNew && state.loaded) {
@@ -419,6 +451,10 @@ function setupReference() {
   });
 }
 
+function setupPre() {
+  $('#show-pre').addEventListener('change', (e) => { state.showPre = e.target.checked; scheduleRender(); });
+}
+
 function setupTable() {
   $('#events-search').addEventListener('input', (e) => { state.search = e.target.value; scheduleRender(); });
   $('#csv').addEventListener('click', downloadCsv);
@@ -438,6 +474,7 @@ setInterval(scheduleRender, 60000); // keeps "hace N min" and the live time curr
 
 map.init();
 setupReference();
+setupPre();
 setupTable();
 renderStatus();
 load();

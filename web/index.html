@@ -49,12 +49,18 @@
       </div>
     </section>
 
+    <div class="prebar">
+      <label class="switch"><input type="checkbox" id="show-pre"> Incluir los 7 días antes del sismo principal</label>
+      <span class="muted" id="pre-note"></span>
+    </div>
+
     <section class="card" id="map-card">
       <h2>Dónde han ocurrido</h2>
-      <p class="note">Cada epicentro, con tamaño según la magnitud y color según su antigüedad respecto al momento mostrado: los más recientes resaltan más. Reproduce la secuencia para ver cómo se fue moviendo. Haz clic en un sismo para ver su ficha, o en el mapa para activar el zoom con la rueda.</p>
+      <p class="note">Cada epicentro, con tamaño según la magnitud y color según el día; el punto rojo es el sismo principal. Reproduce la secuencia para ver cómo se fue moviendo: los anillos oscuros marcan las 6 horas previas al momento mostrado. Con la semana anterior activada, la barra de tiempo también va hacia atrás. Haz clic en un sismo para ver su ficha, o en el mapa para activar el zoom con la rueda.</p>
       <div class="mapbar">
         <button type="button" class="btn" id="map-play">▶ Reproducir</button>
-        <input type="range" id="map-time" min="0" max="1000" step="1" value="1000" aria-label="Momento mostrado en el mapa">
+        <input type="range" id="map-time" min="0" max="1000" step="1" value="1000" list="map-ticks" aria-label="Momento mostrado en el mapa">
+        <datalist id="map-ticks"></datalist>
         <span class="maptime" id="map-time-label">—</span>
         <span class="seg" role="group" aria-label="Vista del mapa">
           <button type="button" class="btn" data-view="zone" aria-pressed="true">Zona de réplicas</button>
@@ -66,15 +72,16 @@
     </section>
 
     <section class="card">
-      <h2>Cada sismo en el tiempo</h2>
-      <p class="note">Magnitud de cada sismo según la hora de Panamá. Pasa el cursor para ver los detalles.</p>
+      <h2>Cada sismo, por hora y magnitud</h2>
+      <p class="note">Cada punto es un sismo, con tamaño según su magnitud, en hora de Panamá (UTC−5). El punto rojo es el sismo principal; el color de los demás indica el día. Pasa el cursor para ver los detalles.</p>
       <div class="chart skeleton" id="chart-timeline"></div>
+      <div class="legend" id="legend-timeline"></div>
     </section>
 
     <section class="cols">
       <div class="card">
         <h2>Réplicas cada 6 horas</h2>
-        <p class="note">La última barra sigue abierta.</p>
+        <p class="note">La última barra sigue abierta. Con la semana anterior activada, las barras a la izquierda de la línea son los días previos.</p>
         <div class="legend top"><span><i class="sw s1"></i>M2.5–3.9</span><span><i class="sw s2"></i>M4 o más</span></div>
         <div class="chart skeleton" id="chart-windows"></div>
       </div>

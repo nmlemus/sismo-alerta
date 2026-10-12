@@ -1,7 +1,8 @@
 /*
   Tokens follow the reference data-viz palette (validated with the palette checker):
-  chrome/ink, two categorical series (blue, orange), a one-hue blue ordinal ramp for
-  event age, status colors for the live indicator only. Intensity uses the USGS
+  chrome/ink, two series (blue, orange) for counts, seven categorical day colors
+  (passes the colorblind checks; contrast relief = legends, tooltips and the table),
+  red for the mainshock, gray for the week before, status colors for the live pill. Intensity uses the USGS
   ShakeMap scale (set in js/intensity.js). Dark mode has its own validated steps.
 */
 :root {
@@ -17,17 +18,22 @@
   --link: #1c5cab;
   --series-1: #2a78d6;
   --series-2: #eb6834;
-  /* event age, newest (1) to oldest (4) */
-  --age-1: #0d366b;
-  --age-2: #1c5cab;
-  --age-3: #3987e5;
-  --age-4: #86b6ef;
+  /* one color per day (reference categorical slots, validated), mainshock, week before */
+  --day-1: #2a78d6;
+  --day-2: #eb6834;
+  --day-3: #1baf7a;
+  --day-4: #eda100;
+  --day-5: #e87ba4;
+  --day-6: #008300;
+  --day-7: #6250d6;
+  --main: #d03b3b;
+  --pre: #898781;
   --good: #0ca30c;
   --warning: #fab219;
   --critical: #d03b3b;
   --radius: 10px;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  --tiles-filter: grayscale(1) contrast(0.92) brightness(1.04);
+  --tiles-filter: none;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -43,12 +49,17 @@
     --link: #6da7ec;
     --series-1: #3987e5;
     --series-2: #d95926;
-    --age-1: #b7d3f6;
-    --age-2: #6da7ec;
-    --age-3: #2a78d6;
-    --age-4: #184f95;
+    --day-1: #3987e5;
+    --day-2: #d95926;
+    --day-3: #199e70;
+    --day-4: #c98500;
+    --day-5: #d55181;
+    --day-6: #008300;
+    --day-7: #9085e9;
+    --main: #e66767;
+    --pre: #898781;
     --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-    --tiles-filter: invert(1) grayscale(1) brightness(0.8) contrast(0.9);
+    --tiles-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
   }
 }
 
@@ -136,8 +147,13 @@ path.pulse { animation: pulse 1.6s ease-out infinite; }
 .chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart .line.s1 { stroke: var(--series-1); }
 .chart .line.s2 { stroke: var(--series-2); }
+.prebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--axis); border-radius: 999px; background: var(--surface); cursor: pointer; }
+.switch input { accent-color: var(--series-1); width: 16px; height: 16px; margin: 0; }
+.chart .stem { stroke-opacity: 0.35; stroke-width: 1; }
+.chart .dot.day { fill-opacity: 0.8; stroke: var(--surface); stroke-width: 1; }
 .chart .dot.s1 { fill: var(--series-1); fill-opacity: 0.55; stroke: var(--surface); stroke-width: 1; }
-.chart .dot.main { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+.chart .dot.main { fill: var(--main); stroke: var(--surface); stroke-width: 2; }
 .chart .dot.mmi { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
 .chart .hover-ring, .chart .sel-ring { fill: none; stroke: var(--ink); stroke-width: 2; }
 .skeleton { background: linear-gradient(90deg, var(--grid), var(--border), var(--grid)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 8px; }
