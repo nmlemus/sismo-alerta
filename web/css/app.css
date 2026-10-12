@@ -107,7 +107,14 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .btn[aria-pressed=true] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .seg { display: inline-flex; }
 .seg .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.seg .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.seg .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.seg .btn + .btn { margin-left: -1px; }
+.seg .btn:not(:first-child):not(:last-child) { border-radius: 0; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; font-size: 13px; }
+.fgroup { display: inline-flex; align-items: center; gap: 8px; }
+.flabel { color: var(--ink-2); font-size: 12px; }
+.fnote { flex-basis: 100%; margin: 0; font-size: 13px; }
+.fnote:has(span:empty + span:empty) { display: none; }
 .map { height: clamp(360px, 62vh, 620px); border-radius: 8px; border: 1px solid var(--border); background: var(--page); }
 .leaflet-container { font: inherit; background: var(--page); }
 .map .leaflet-tile-pane { filter: var(--tiles-filter); }

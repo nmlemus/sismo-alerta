@@ -78,6 +78,8 @@ Es un sitio estático, sin paso de compilación, en `index.html`, `js/` y `css/`
 
 Además lee del USGS los reportes "Did You Feel It?" y el pronóstico oficial de réplicas del sismo principal (`SEQUENCE.usgsEventId`), y permite descargar la tabla en CSV con un enlace a la ficha de cada sismo en el EMSC. Los colores siguen una paleta validada para daltonismo, con pasos propios para modo claro y oscuro: un color por día de la secuencia, rojo para el sismo principal, gris para la semana anterior y la escala de colores de intensidad del USGS (ShakeMap).
 
+Los filtros sobre el mapa eligen el periodo (semana previa, todo, hoy, últimas 24 h, últimas 6 h) y la magnitud mínima (M3+, M4+, M5+). Se aplican al mapa, la línea de tiempo, la gráfica de intensidad, la tabla y el CSV; las cifras de arriba y las gráficas de ritmo siempre cuentan toda la secuencia. Los filtros quedan en la dirección, así que un link como `?periodo=24h&mag=4` abre esa vista.
+
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
 
 La página está en español e inglés. Toma el idioma del navegador, y el botón ES/EN de arriba lo cambia y lo recuerda. Para compartir un enlace en un idioma, agrega `?lang=en` o `?lang=es`. Todos los textos están en `web/js/i18n.js`.

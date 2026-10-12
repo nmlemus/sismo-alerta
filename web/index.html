@@ -55,9 +55,27 @@
       </div>
     </section>
 
-    <div class="prebar">
-      <label class="switch"><input type="checkbox" id="show-pre"> <span data-i18n="pre.toggle">Incluir los 7 días antes del sismo principal</span></label>
-      <span class="muted" id="pre-note"></span>
+    <div class="filters">
+      <div class="fgroup">
+        <span class="flabel" data-i18n="f.period">Periodo</span>
+        <span class="seg" role="group" aria-label="Periodo" data-i18n-attr="aria-label:f.period">
+          <button type="button" class="btn" data-period="pre" aria-pressed="false" data-i18n="f.pre" data-i18n-attr="title:f.preLong">Semana previa</button>
+          <button type="button" class="btn" data-period="todo" aria-pressed="true" data-i18n="f.todo" data-i18n-attr="title:f.todoLong">Todo</button>
+          <button type="button" class="btn" data-period="hoy" aria-pressed="false" data-i18n="f.hoy" data-i18n-attr="title:f.hoyLong">Hoy</button>
+          <button type="button" class="btn" data-period="24h" aria-pressed="false" data-i18n="f.24h" data-i18n-attr="title:f.24hLong;aria-label:f.24hLong">24 h</button>
+          <button type="button" class="btn" data-period="6h" aria-pressed="false" data-i18n="f.6h" data-i18n-attr="title:f.6hLong;aria-label:f.6hLong">6 h</button>
+        </span>
+      </div>
+      <div class="fgroup">
+        <span class="flabel" data-i18n="f.mag">Magnitud</span>
+        <span class="seg" role="group" aria-label="Magnitud" data-i18n-attr="aria-label:f.mag">
+          <button type="button" class="btn" data-mag="0" aria-pressed="true" data-i18n="f.allMags">Todas</button>
+          <button type="button" class="btn" data-mag="3" aria-pressed="false">M3+</button>
+          <button type="button" class="btn" data-mag="4" aria-pressed="false">M4+</button>
+          <button type="button" class="btn" data-mag="5" aria-pressed="false">M5+</button>
+        </span>
+      </div>
+      <p class="fnote muted"><span id="view-note"></span> <span id="pre-note"></span></p>
     </div>
 
     <section class="card" id="map-card">

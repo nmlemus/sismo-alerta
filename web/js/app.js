@@ -3,7 +3,7 @@
 import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
 import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
-import { ago, duration, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
+import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
 import { dayLegend, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
@@ -28,8 +28,25 @@ const state = {
   usgs: null, // { dyfi, dyfiCount, forecast, url } once loaded
   usgsError: false,
   rows: [],
+  // Filters (also in the address: ?periodo=24h&mag=4). Period 'pre' shows the week before.
+  period: 'todo', // pre | todo | hoy | 24h | 6h
+  minMag: 0, // 0 = all
   showPre: false,
 };
+
+const PERIODS = ['pre', 'todo', 'hoy', '24h', '6h'];
+const MAGS = [0, 3, 4, 5];
+
+/** Start of the period filter in ms; for the windows, also the start of the time axis. */
+function periodStart(main, now) {
+  switch (state.period) {
+    case 'pre': return main.t.getTime() - SEQUENCE.preDays * 24 * H;
+    case 'hoy': { const w = wall(new Date(now)); return Date.UTC(w.getUTCFullYear(), w.getUTCMonth(), w.getUTCDate()) + 5 * H; }
+    case '24h': return now - 24 * H;
+    case '6h': return now - 6 * H;
+    default: return main.t.getTime();
+  }
+}
 
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
 
@@ -172,7 +189,6 @@ function render() {
 
   // reference point: reported (DYFI) when the town has reports, estimated always
   const rows = [main, ...seq].map((ev) => ({ ev, km: epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon), mmi: estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust) }));
-  state.rows = rows;
   const mainRow = rows[0];
   const reported = dyfiFor(ref);
   setText('#ref-name', ref.name);
@@ -197,8 +213,22 @@ function render() {
     seq, main, now, windows: s.windows, bands: s.bands, rows, ref,
     pre: d.pre, showPre: state.showPre, preDays: SEQUENCE.preDays, dayIndex: d.dayIndex, palette,
   };
-  chart('#chart-timeline', drawTimeline, opts);
+  // What the filters let through: map, timeline, intensity chart, table and CSV.
+  const fromT = periodStart(main, now);
+  const pass = (e) => e.t.getTime() >= fromT && e.mag >= state.minMag;
+  const mainIn = main.t.getTime() >= fromT;
+  const seqV = seq.filter(pass);
+  const preV = state.showPre ? d.pre.filter(pass) : [];
+  const rowsV = rows.filter((r) => (r.ev === main ? mainIn : pass(r.ev)));
+  state.rows = rowsV;
+  const windowed = ['hoy', '24h', '6h'].includes(state.period);
+  const view = { ...opts, seq: seqV, pre: preV, rows: rowsV, mainIn, big: s.big, from: windowed ? new Date(fromT) : null };
+  chart('#chart-timeline', drawTimeline, view);
   dayLegend($('#legend-timeline'), opts);
+  const filtered = state.period !== 'todo' || state.minMag > 0;
+  setText('#view-note', filtered
+    ? t('f.showing', t('f.desc')[state.period], state.minMag ? `M${state.minMag}+` : '', fmtInt(rowsV.length + preV.length))
+    : '');
   const preZone = d.pre.filter((e) => e.inZone);
   setText('#pre-note', state.showPre
     ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '')
@@ -206,15 +236,15 @@ function render() {
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
   chart('#chart-bands', drawBands, opts);
-  chart('#chart-intensity', drawIntensity, opts);
+  chart('#chart-intensity', drawIntensity, view);
   mmiLegend($('#legend-intensity'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
   renderDyfi(main, reported);
   renderForecast();
   map.setData({
-    main, seq, others: d.others, pre: d.pre, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
-    now: Math.max(now, (s.latest || main).t.getTime()),
+    main, seq: seqV, others: d.others.filter(pass), pre: preV, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
+    now: Math.max(now, (s.latest || main).t.getTime()), from: windowed ? fromT : null,
   });
-  renderTable(rows);
+  renderTable(rowsV, main);
 }
 
 function renderDyfi(main, reported) {
@@ -294,7 +324,7 @@ const COLS = [
   { key: 'link', nosort: true, val: () => 0, text: () => '' },
 ];
 
-function renderTable(rows) {
+function renderTable(rows, main) {
   const table = $('#events');
   const head = table.querySelector('thead tr');
   if (!head.children.length) {
@@ -323,7 +353,7 @@ function renderTable(rows) {
   const body = table.querySelector('tbody');
   body.replaceChildren(...shown.map((r) => {
     const tr = document.createElement('tr');
-    if (r.ev === rows[0].ev) tr.className = 'main';
+    if (r.ev === main) tr.className = 'main';
     for (const c of COLS) {
       const td = document.createElement('td');
       if (c.num) td.classList.add('n');
@@ -481,8 +511,26 @@ function setupLanguage() {
   document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => switchLanguage(b.dataset.lang)));
 }
 
-function setupPre() {
-  $('#show-pre').addEventListener('change', (e) => { state.showPre = e.target.checked; scheduleRender(); });
+function setupFilters() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (PERIODS.includes(q.get('periodo'))) state.period = q.get('periodo');
+    if (MAGS.includes(Number(q.get('mag')))) state.minMag = Number(q.get('mag'));
+  } catch { /* no query string */ }
+  const sync = () => {
+    state.showPre = state.period === 'pre';
+    document.querySelectorAll('[data-period]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.period === state.period)));
+    document.querySelectorAll('[data-mag]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.mag) === state.minMag)));
+    try {
+      const u = new URL(location.href);
+      if (state.period === 'todo') u.searchParams.delete('periodo'); else u.searchParams.set('periodo', state.period);
+      if (state.minMag) u.searchParams.set('mag', String(state.minMag)); else u.searchParams.delete('mag');
+      history.replaceState(history.state, '', u);
+    } catch { /* not allowed here */ }
+  };
+  document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => { state.period = b.dataset.period; sync(); scheduleRender(); }));
+  document.querySelectorAll('[data-mag]').forEach((b) => b.addEventListener('click', () => { state.minMag = Number(b.dataset.mag); sync(); scheduleRender(); }));
+  sync();
 }
 
 function setupTable() {
@@ -508,7 +556,7 @@ map.init();
 map.relabel();
 setupLanguage();
 setupReference();
-setupPre();
+setupFilters();
 setupTable();
 renderStatus();
 load();

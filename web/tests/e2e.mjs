@@ -156,7 +156,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   // the week before the mainshock
   const dotsBefore = await page.locator('#chart-timeline circle.dot').count();
   const barsBefore = await page.locator('#chart-windows path.bar.s2').count();
-  await page.check('#show-pre');
+  await page.click('[data-period="pre"]');
   await page.waitForTimeout(400);
   check((await page.locator('#chart-timeline circle.dot').count()) === dotsBefore + 3, `${vp.name}: timeline adds the week before`);
   check((await page.locator('#chart-windows path.bar.s2').count()) === barsBefore + 28, `${vp.name}: 6-hour bars add 28 windows before`);
@@ -165,9 +165,33 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.locator('#map-time').evaluate((n) => { n.value = '100'; n.dispatchEvent(new Event('input', { bubbles: true })); });
   check((await page.textContent('#map-time-label')).includes('antes del sismo principal'), `${vp.name}: slider goes before the mainshock`);
   if (OUT && vp.name === 'desktop') await page.screenshot({ path: join(OUT, 'pre-week.png'), fullPage: true });
-  await page.uncheck('#show-pre');
+  await page.click('[data-period="todo"]');
   await page.waitForTimeout(300);
   check((await page.locator('#chart-timeline circle.dot').count()) === dotsBefore, `${vp.name}: week before hidden again`);
+
+  // period and magnitude filters
+  const rowsAll = await page.locator('#events tbody tr').count();
+  await page.click('[data-mag="5"]');
+  await page.waitForTimeout(300);
+  const mags = await page.locator('#events tbody tr td:nth-child(2)').allTextContents();
+  check(mags.length > 5 && mags.length < 40 && mags.every((m) => Number(m) >= 5), `${vp.name}: M5+ filter on the table (${mags.length} rows)`);
+  check((await page.locator('#chart-timeline circle.dot').count()) === mags.length, `${vp.name}: M5+ filter on the timeline`);
+  check((await page.textContent('#view-note')).includes('M5+'), `${vp.name}: filter note (${await page.textContent('#view-note')})`);
+  check(page.url().includes('mag=5'), `${vp.name}: filter kept in the address`);
+  const [dlF] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
+  check(readFileSync(await dlF.path(), 'utf8').trim().split('\n').length === mags.length + 1, `${vp.name}: CSV follows the filter`);
+  await page.click('[data-mag="0"]');
+  await page.click('[data-period="24h"]');
+  await page.waitForTimeout(300);
+  const rows24 = await page.locator('#events tbody tr').count();
+  check(rows24 > 0 && rows24 < rowsAll && (await page.locator('#chart-timeline circle.dot.main').count()) === 0, `${vp.name}: last 24 h (${rows24} of ${rowsAll})`);
+  check(page.url().includes('periodo=24h'), `${vp.name}: period kept in the address`);
+  await page.click('[data-period="6h"]');
+  await page.waitForTimeout(300);
+  check((await page.locator('#events tbody tr').count()) <= rows24, `${vp.name}: last 6 h`);
+  await page.click('[data-period="todo"]');
+  await page.waitForTimeout(300);
+  check((await page.locator('#events tbody tr').count()) === rowsAll && !page.url().includes('periodo'), `${vp.name}: back to everything`);
 
   // a live event from the WebSocket
   const t = new Date(Date.now() - 60e3).toISOString();

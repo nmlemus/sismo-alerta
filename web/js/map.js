@@ -109,11 +109,13 @@ export class QuakeMap {
     if (this.main) { this.legend(); this.render(); }
   }
 
-  get tMin() { return this.showPre ? -SEQUENCE.preDays * 24 * H : 0; }
+  /** Start of the slider, in ms from the mainshock: the week before, the mainshock, or the start of a period filter. */
+  get tMin() { return this.showPre ? -SEQUENCE.preDays * 24 * H : Math.max(0, this.from == null ? 0 : this.from - this.main.t.getTime()); }
 
   /** Rebuild markers for new data. */
-  setData({ main, seq, others, pre, dayIndex, days, ref, now, showPre }) {
+  setData({ main, seq, others, pre, dayIndex, days, ref, now, showPre, from = null }) {
     this.main = main;
+    this.from = from;
     this.now = now;
     this.T = Math.max(1, now - main.t.getTime());
     this.dayIndex = dayIndex;
@@ -130,6 +132,7 @@ export class QuakeMap {
         this.map.flyToBounds(showPre ? bounds : VIEWS.zone, { duration: 0.6, padding: [20, 20] });
       }
     }
+    if (this.t != null && (this.t < this.tMin || this.t > this.T)) this.t = null;
     // Tick on the slider where the mainshock is.
     const zeroAt = Math.round((-this.tMin / (this.T - this.tMin)) * 1000);
     this.ticks.replaceChildren(...(this.showPre ? [Object.assign(document.createElement('option'), { value: String(zeroAt), label: t('leg.main') })] : []));
@@ -232,13 +235,13 @@ export class QuakeMap {
   togglePlay() {
     if (this.playing) { this.stop(); return; }
     // Playback starts at the mainshock unless the slider was moved into the week before.
-    if (this.t == null || this.t >= this.T) this.t = 0;
+    if (this.t == null || this.t >= this.T) this.t = Math.max(0, this.tMin);
     this.playing = true;
     this.playBtn.textContent = t('map.pause');
     let last = performance.now();
     const step = (now) => {
       if (!this.playing) return;
-      this.t += ((now - last) / 1000) * (this.T / PLAY_SECONDS);
+      this.t += ((now - last) / 1000) * ((this.T - Math.max(0, this.tMin)) / PLAY_SECONDS);
       last = now;
       if (this.t >= this.T) { this.t = null; this.stop(); this.render(); return; }
       this.render();

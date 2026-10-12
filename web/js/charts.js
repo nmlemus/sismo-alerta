@@ -63,7 +63,7 @@ function timeAxis(svg, x, y0, W) {
   // Smallest step (hours) that leaves ~64 px per label.
   const span = (x.domain()[1] - x.domain()[0]) / 3600e3;
   const plot = x.range()[1] - x.range()[0];
-  const every = [6, 12, 24, 48, 168].find((h) => (span / h) * 64 <= plot) || 168;
+  const every = [1, 2, 3, 6, 12, 24, 48, 168].find((h) => (span / h) * 64 <= plot) || 168;
   for (const t of x.ticks(d3.utcHour.every(every))) {
     svg.append('text').attr('class', `tick${t.getUTCHours() === 0 ? ' strong' : ''}`)
       .attr('x', x(t)).attr('y', y0 + 18).attr('text-anchor', 'middle').text(tickLabel(t));
@@ -120,15 +120,17 @@ function nearestHover(el, svg, pts, onShow, linkOf) {
 /**
  * Every event, by time and magnitude: a stem and a dot per earthquake, colored by
  * local day; the mainshock in red. With showPre, the week before appears in gray
- * to the left of a line at the mainshock.
+ * to the left of a line at the mainshock. With a period filter (`from`), the axis
+ * covers that window up to now and only the events passed in are drawn.
  */
-export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, preDays }) {
+export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, preDays, from, now, mainIn = true, big }) {
   const { svg, W, H } = newSvg(el, 320);
   const before = showPre ? pre : [];
-  const all = [...before, main, ...seq];
+  const all = [...before, ...(mainIn ? [main] : []), ...seq];
   const m = { l: textWidth(svg, '8', 'tick') + 14, r: 12, t: 16, b: 30 };
-  const x0 = showPre ? d3.utcDay.offset(wall(main.t), -preDays) : d3.utcHour.offset(wall(main.t), -1);
-  const x = d3.scaleUtc([x0, d3.utcHour.offset(wall(d3.max(all, (d) => d.t)), 1)], [m.l, W - m.r]);
+  const x0 = from ? wall(from) : showPre ? d3.utcDay.offset(wall(main.t), -preDays) : d3.utcHour.offset(wall(main.t), -1);
+  const x1 = from || !all.length ? wall(new Date(now)) : d3.utcHour.offset(wall(d3.max(all, (d) => d.t)), 1);
+  const x = d3.scaleUtc([x0, x1], [m.l, W - m.r]);
   const y = d3.scaleLinear([2.3, Math.max(8.1, main.mag + 0.4)], [H - m.b, m.t]);
   yAxis(svg, y, [3, 4, 5, 6, 7, 8], m.l, W - m.r);
   timeAxis(svg, x, H - m.b, W);
@@ -136,6 +138,10 @@ export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, p
     const xm = x(wall(main.t));
     svg.append('line').attr('class', 'ref').attr('x1', xm).attr('x2', xm).attr('y1', m.t).attr('y2', H - m.b);
     svg.append('text').attr('class', 'tick').attr('x', xm - 6).attr('y', m.t + 4).attr('text-anchor', 'end').text(t('tl.pre', preDays));
+  }
+  if (!all.length) {
+    svg.append('text').attr('class', 'label').attr('x', (m.l + W - m.r) / 2).attr('y', (m.t + H - m.b) / 2).attr('text-anchor', 'middle').text(t('f.empty'));
+    return;
   }
   const colorOf = (d) => (d === main ? token('--main') : d.t < main.t ? token('--pre') : palette.colorOf(dayIndex(d)));
   const sorted = [...all].sort((a, b) => a.mag - b.mag);
@@ -146,10 +152,12 @@ export function drawTimeline(el, { seq, main, pre, showPre, dayIndex, palette, p
     .attr('class', (d) => (d === main ? 'dot main' : 'dot day'))
     .attr('cx', (d) => x(wall(d.t))).attr('cy', (d) => y(d.mag)).attr('r', (d) => radiusFor(d.mag))
     .attr('fill', colorOf);
-  svg.append('text').attr('class', 'label strong').attr('x', x(wall(main.t)) + radiusFor(main.mag) + 6).attr('y', y(main.mag)).attr('dy', '0.32em')
-    .text(t('tl.mainLbl', fmtMag(main.mag)));
-  const big = seq.length ? seq.reduce((a, b) => (b.mag > a.mag ? b : a)) : null;
-  if (big) {
+  if (mainIn) {
+    svg.append('text').attr('class', 'label strong').attr('x', x(wall(main.t)) + radiusFor(main.mag) + 6).attr('y', y(main.mag)).attr('dy', '0.32em')
+      .text(t('tl.mainLbl', fmtMag(main.mag)));
+  }
+  // Label the largest aftershock of the whole sequence, only if it is on screen.
+  if (big && seq.includes(big)) {
     svg.append('text').attr('class', 'label').attr('x', x(wall(big.t)) + radiusFor(big.mag) + 6).attr('y', y(big.mag)).attr('dy', '0.32em')
       .text(t('tl.bigLbl', fmtMag(big.mag)));
   }
@@ -284,16 +292,22 @@ export function drawBands(el, { bands }) {
 }
 
 /** Estimated intensity at the reference point for every event (USGS ShakeMap colors). */
-export function drawIntensity(el, { rows, ref }) {
+export function drawIntensity(el, { rows, ref, from, now }) {
   const { svg, W, H } = newSvg(el, 270);
   const m = { l: textWidth(svg, 'VIII', 'tick') + 14, r: 12, t: 14, b: 30 };
-  const maxLv = Math.max(5, d3.max(rows, (r) => mmiLevel(r.mmi)) + 1);
+  const maxLv = Math.max(5, (d3.max(rows, (r) => mmiLevel(r.mmi)) || 0) + 1);
   const y = d3.scaleLinear([1, maxLv], [H - m.b, m.t]);
-  const x = d3.scaleUtc([d3.utcHour.offset(wall(d3.min(rows, (r) => r.ev.t)), -1), d3.utcHour.offset(wall(d3.max(rows, (r) => r.ev.t)), 1)], [m.l, W - m.r]);
+  const x = from || !rows.length
+    ? d3.scaleUtc([wall(from || new Date(now - 24 * 3600e3)), wall(new Date(now))], [m.l, W - m.r])
+    : d3.scaleUtc([d3.utcHour.offset(wall(d3.min(rows, (r) => r.ev.t)), -1), d3.utcHour.offset(wall(d3.max(rows, (r) => r.ev.t)), 1)], [m.l, W - m.r]);
   yAxis(svg, y, d3.range(1, maxLv + 1), m.l, W - m.r, (v) => ROMAN[v]);
   timeAxis(svg, x, H - m.b, W);
   svg.append('line').attr('class', 'ref').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(2.5)).attr('y2', y(2.5));
   svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', y(2.5) - 5).attr('text-anchor', 'end').text(t('int.indoors'));
+  if (!rows.length) {
+    svg.append('text').attr('class', 'label').attr('x', (m.l + W - m.r) / 2).attr('y', y(4)).attr('text-anchor', 'middle').text(t('f.empty'));
+    return;
+  }
   const sorted = [...rows].sort((a, b) => a.ev.mag - b.ev.mag);
   svg.append('g').selectAll('circle').data(sorted).join('circle')
     .attr('class', 'dot mmi').attr('fill', (r) => MMI_COLORS[mmiLevel(r.mmi)])

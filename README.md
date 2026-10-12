@@ -46,6 +46,8 @@ A static site with no build step (`index.html`, `js/`, `css/`, with d3 and Leafl
 
 It also reads the USGS "Did You Feel It?" reports and official aftershock forecast for the mainshock (`SEQUENCE.usgsEventId`), and lets you download the table as CSV, with a link to each earthquake's EMSC page. Colors follow a palette checked for color blindness, with separate steps for light and dark mode: one color per day of the sequence, red for the mainshock, gray for the week before, and the USGS ShakeMap intensity scale.
 
+Filters above the map choose the period (week before, all, today, last 24 h, last 6 h) and the minimum magnitude (M3+, M4+, M5+). They apply to the map, the timeline, the intensity chart, the table and the CSV; the figures at the top and the rate charts always count the whole sequence. Filters go in the address too, so a link like `?periodo=24h&mag=4` opens that view.
+
 To follow a different earthquake, change `SEQUENCE` in `web/js/config.js`.
 
 The page is in Spanish and English. It follows the browser's language, and the ES/EN button at the top switches and remembers it. To share a link in one language, add `?lang=en` or `?lang=es`. All text lives in `web/js/i18n.js`.
