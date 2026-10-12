@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sismo de Panamá en vivo · réplicas</title>
+  <meta name="description" content="Terremoto M7.7 del 9 de octubre de 2026 en Panamá y sus réplicas, en vivo desde EMSC (incluye al Instituto de Geociencias de la Universidad de Panamá).">
+  <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 17h6l3-9 5 18 4-14 3 5h7' fill='none' stroke='%23d7263d' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet-1.9.4.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main class="page">
+    <header class="head">
+      <div class="status" id="live" data-kind="warn"><span class="dot"></span><span id="live-text">Cargando…</span><span class="synced" id="synced"></span></div>
+      <h1>Terremoto de Panamá y sus réplicas</h1>
+      <p class="take" id="takeaway">Cargando el catálogo de sismos…</p>
+    </header>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <section class="tiles" aria-label="Cifras principales">
+      <div class="card tile">
+        <span class="lbl">Sismo principal</span>
+        <span class="num crit" id="main-mag">—</span>
+        <span class="sub" id="main-when"></span>
+      </div>
+      <div class="card tile">
+        <span class="lbl">Réplicas registradas</span>
+        <span class="num" id="n-after">—</span>
+        <span class="sub" id="n-after-sub"></span>
+      </div>
+      <div class="card tile">
+        <span class="lbl">Mayor réplica</span>
+        <span class="num" id="big-mag">—</span>
+        <span class="sub" id="big-sub"></span>
+      </div>
+      <div class="card tile">
+        <span class="lbl">Ritmo de réplicas fuertes</span>
+        <span class="num" id="m4-rate">—</span>
+        <span class="sub" id="m4-sub"></span>
+      </div>
+      <div class="card tile">
+        <span class="lbl">Última réplica</span>
+        <span class="num" id="last-ago">—</span>
+        <span class="sub" id="last-sub"></span>
+      </div>
+    </section>
+
+    <section class="card" id="map-card">
+      <h2>Dónde han ocurrido</h2>
+      <p class="note">Cada epicentro, con tamaño según la magnitud y color según el día. Reproduce la secuencia para ver cómo se fue moviendo; los anillos oscuros marcan las 6 horas previas al momento mostrado. Haz clic en el mapa para activar el zoom con la rueda.</p>
+      <div class="mapbar">
+        <button type="button" class="btn" id="map-play">▶ Reproducir</button>
+        <input type="range" id="map-time" min="0" max="1000" step="1" value="1000" aria-label="Momento mostrado en el mapa">
+        <span class="maptime" id="map-time-label">—</span>
+        <span class="seg" role="group" aria-label="Vista del mapa">
+          <button type="button" class="btn" data-view="zone" aria-pressed="true">Zona de réplicas</button>
+          <button type="button" class="btn" data-view="country" aria-pressed="false">Todo Panamá</button>
+        </span>
+      </div>
+      <div id="map" class="map" role="region" aria-label="Mapa de epicentros"></div>
+      <div class="legend" id="map-legend"></div>
+    </section>
+
+    <section class="card">
+      <h2>Cada sismo en el tiempo</h2>
+      <p class="note">Magnitud de cada sismo según la hora de Panamá. Pasa el cursor para ver los detalles.</p>
+      <div class="chart skeleton" id="chart-timeline"></div>
+    </section>
+
+    <section class="cols">
+      <div class="card">
+        <h2>Réplicas cada 6 horas</h2>
+        <p class="note">La parte oscura son las de M4 o más. La última barra sigue abierta.</p>
+        <div class="chart skeleton" id="chart-windows"></div>
+      </div>
+      <div class="card">
+        <h2>Réplicas por magnitud</h2>
+        <p class="note">Las pequeñas son mucho más comunes, aunque mar adentro no todas las de M2.5–3.5 se logran ubicar.</p>
+        <div class="chart skeleton" id="chart-bands"></div>
+      </div>
+    </section>
+
+    <section class="card" id="ref-card">
+      <div class="refhead">
+        <h2>¿Cómo se sintió en <span id="ref-name">Ciudad de Panamá</span>?</h2>
+        <label class="refsel">Ver para <select id="ref-select" aria-label="Lugar de referencia"></select></label>
+      </div>
+      <p class="note" id="ref-note">Intensidad estimada (escala de Mercalli) con un modelo que usa la magnitud y la distancia. Es un promedio: cambia con el suelo, el edificio y el piso.</p>
+      <div class="refrow">
+        <span class="badge" id="ref-badge">—</span>
+        <div>
+          <div><b>Sismo principal:</b> <span id="ref-main">—</span></div>
+          <div><b>Réplica más sentida en las últimas 24 h:</b> <span id="ref-day">—</span></div>
+          <div class="muted" id="ref-felt"></div>
+        </div>
+      </div>
+      <div class="chart skeleton" id="chart-intensity"></div>
+    </section>
+
+    <section class="card">
+      <div class="tablehead">
+        <h2>Todos los sismos</h2>
+        <span class="muted" id="events-count"></span>
+      </div>
+      <input type="search" class="search" id="events-search" placeholder="Buscar por lugar, fecha, magnitud o agencia" aria-label="Buscar sismos">
+      <div class="tablebox">
+        <table id="events"><thead><tr></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p><b>Esto no es una alerta temprana.</b> Los sismos se publican minutos después de ocurrir. Ante un sismo fuerte, sigue las indicaciones de SINAPROC.</p>
+      <p>Datos: <a href="https://www.seismicportal.eu" rel="noopener">EMSC Seismic Portal</a>, en vivo. Reúne las soluciones del Instituto de Geociencias de la Universidad de Panamá (IGC), la Universidad Nacional de Costa Rica (UNA), el USGS (NEIC) y el propio EMSC; se muestra la que EMSC considera preferida. Las cifras cuentan solo la zona de réplicas (recuadro punteado del mapa: 6.5°–8.2° N, 79.5°–82.3° O). Las magnitudes mezclan escalas (mw para los mayores, magnitud local "m" del IGC y la UNA, mb del EMSC y el USGS) y pueden revisarse.</p>
+      <p>Intensidad: ecuación de Atkinson, Worden y Wald (2014). Para Ciudad de Panamá y Colón se suma +0.6, lo que iguala lo reportado por la gente al USGS ("Did You Feel It?") en la capital durante el sismo principal. Mapa: © OpenStreetMap, © CARTO.</p>
+    </footer>
+  </main>
+
+  <script src="vendor/d3-7.9.0.min.js"></script>
+  <script src="vendor/leaflet/leaflet-1.9.4.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

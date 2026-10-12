@@ -19,6 +19,7 @@ app Flutter ──► Firestore devices/{uid}: token, ubicación (~1 km), umbral
 |---|---|
 | `backend/` | Servicio Python (aiohttp) para Cloud Run. Escucha el WebSocket del EMSC y además consulta EMSC y USGS cada 30 s como respaldo. Une las soluciones de distintas agencias en un solo evento, lo guarda en Firestore y manda la notificación a cada teléfono cuya intensidad estimada supere su umbral. |
 | `app/` | App Flutter (Android e iOS). Incluye el mapa de sismos recientes coloreados por la intensidad que tendrían donde estás, el detalle con la animación de las ondas P y S y las zonas de intensidad que deja la onda S, y los ajustes de umbral, ubicación y ajuste local. |
+| `web/` | Página web pública en vivo: mapa de epicentros con reproducción, gráficas, intensidad estimada en un lugar de referencia y tabla. Lee el EMSC directamente desde el navegador de cada visitante, sin servidor. |
 | `infra/` | Reglas de Firestore y `deploy.sh` para Cloud Run. |
 | `.github/workflows/ci.yml` | Pruebas del backend y, para la app, análisis, pruebas y compilación Android en cada push. |
 
@@ -61,6 +62,42 @@ flutterfire configure --project=tu-proyecto   # reemplaza lib/firebase_options.d
 flutter run
 ```
 En iOS, abre `ios/Runner.xcworkspace` y agrega las capacidades *Push Notifications* y *Background Modes → Remote notifications*.
+
+## Página web en vivo (`web/`)
+
+Es un sitio estático, sin paso de compilación, en `index.html`, `js/` y `css/`, con d3 y Leaflet incluidos en `vendor/`. Funciona así:
+- **Al abrir:** pide al EMSC el catálogo desde el sismo principal, en páginas de 300 eventos.
+- **En vivo:** se conecta al WebSocket del EMSC y agrega cada sismo nuevo segundos después de que se publica.
+- **Respaldo:** consulta el catálogo cada 2 minutos por si se cae la conexión.
+
+Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
+
+**Probar en local**
+```bash
+cd web
+npm run serve            # http://localhost:8080
+npm install && npm test && npm run e2e   # pruebas; la e2e usa datos fijos del 9 de octubre
+```
+
+**Publicar en Firebase Hosting (una vez)**
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only hosting --project tu-proyecto    # desde la raíz del repo
+```
+Queda en `https://tu-proyecto.web.app`.
+
+**Despliegue automático (opcional).** Cada push a `main` que toque `web/` se publica solo con dos ajustes del repositorio en GitHub:
+- **Variable `FIREBASE_PROJECT_ID`:** con el id de tu proyecto.
+- **Secreto `FIREBASE_SERVICE_ACCOUNT`:** con la clave JSON de una cuenta de servicio con el rol *Firebase Hosting Admin*.
+
+**Costos.** Una primera visita descarga unos 160 KB comprimidos, y las siguientes, mucho menos.
+- **Plan gratuito (Spark):** el límite es de 360 MB al día, unas 2,000 primeras visitas diarias. Si se pasa del límite, **el sitio deja de servirse hasta el día siguiente**.
+- **Plan Blaze:** el exceso cuesta US$0.15/GB, unos 2 centavos por cada 1,000 visitas. Si vas a compartir el link en público, usa Blaze con una alerta de presupuesto (el backend de la app también lo necesita).
+
+**Límites**
+- **Carga sobre el EMSC.** Cada visitante consulta al EMSC directamente, lo que va bien para cientos de personas. Si el link se vuelve viral, conviene que la página lea de un archivo que actualice el backend de la app, para no multiplicar las consultas.
+- **Mapas.** Los tiles son de CARTO y OpenStreetMap; su uso gratuito es razonable, pero no ilimitado.
 
 ## Variables del backend
 

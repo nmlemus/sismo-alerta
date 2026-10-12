@@ -1,0 +1,25 @@
+name: Deploy web
+
+# Publishes web/ to Firebase Hosting on every push to main that touches it.
+# Setup (once): repository variable FIREBASE_PROJECT_ID and secret
+# FIREBASE_SERVICE_ACCOUNT (JSON key of a service account with the
+# "Firebase Hosting Admin" role). Until the variable exists this job is skipped.
+
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "firebase.json", ".github/workflows/deploy-web.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: live

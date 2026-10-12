@@ -2,5 +2,25 @@
   "firestore": {
     "rules": "infra/firestore.rules",
     "indexes": "infra/firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "web",
+    "ignore": ["tests/**", "node_modules/**", "package.json", "package-lock.json", ".gitignore", "**/.*"],
+    "cleanUrls": true,
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com; connect-src 'self' https://www.seismicportal.eu wss://www.seismicportal.eu; frame-ancestors 'none'; base-uri 'self'" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "vendor/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      }
+    ]
   }
 }

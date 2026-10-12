@@ -41,7 +41,7 @@ class Pipeline:
         self.notified: dict[str, dict[str, float]] = {}
         self._by_origin: dict[str, str] = {}
         self._devices: list[Device] = []
-        self._devices_at = 0.0
+        self._devices_at: float | None = None
         self._lock = asyncio.Lock()
         self.stats = {"origins": 0, "events": 0, "pushes": 0, "ignored": 0}
 
@@ -83,7 +83,7 @@ class Pipeline:
                 self._by_origin.pop(k, None)
 
     async def _devices_now(self) -> list[Device]:
-        if time.monotonic() - self._devices_at > self.s.devices_refresh_s:
+        if self._devices_at is None or time.monotonic() - self._devices_at > self.s.devices_refresh_s:
             try:
                 self._devices = await self.store.load_devices()
                 self._devices_at = time.monotonic()
