@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Earthquakes are written only by the backend (service account bypasses rules).
+    match /events/{eventId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Each phone owns exactly one device document, keyed by its anonymous Firebase uid.
+    match /devices/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+             'fcmToken', 'lat', 'lon', 'enabled', 'thresholdLevel', 'minMag', 'alwaysMag',
+             'siteAdjust', 'locationMode', 'platform', 'updatedAt'])
+        && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+        && request.resource.data.lon is number && request.resource.data.lon >= -180 && request.resource.data.lon <= 180
+        && request.resource.data.thresholdLevel is int
+        && request.resource.data.thresholdLevel >= 1 && request.resource.data.thresholdLevel <= 10;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

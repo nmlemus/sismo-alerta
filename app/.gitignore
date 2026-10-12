@@ -1,0 +1,12 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+# Generated platform folders are committed once you run tool/setup_platforms.py;
+# Firebase config files stay out of git if you prefer (they are not secrets, but are project-specific).

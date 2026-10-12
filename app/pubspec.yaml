@@ -1,0 +1,29 @@
+name: sismo_alerta
+description: Alertas de sismos para Panamá con intensidad estimada en tu ubicación y simulación de ondas P y S.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.0
+  firebase_messaging: ^15.2.0
+  cloud_firestore: ^5.6.0
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
+  shared_preferences: ^2.3.3
+  flutter_local_notifications: ^18.0.1
+  intl: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

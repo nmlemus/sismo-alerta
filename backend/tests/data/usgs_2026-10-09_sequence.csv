@@ -1,0 +1,61 @@
+id,time_utc,time_local,latitude,longitude,depth_km,mag,mag_type,place,status
+us6000u18k,2026-10-09T17:56:06Z,2026-10-09 12:56:06,7.5868,-80.769,12.647,7.7,mww,"12 km WSW of Pitaloza Arriba, Panama",reviewed
+us6000u18t,2026-10-09T18:22:15Z,2026-10-09 13:22:15,7.586,-80.2885,10.0,5.5,mb,"3 km SW of Bajo Corral, Panama",reviewed
+us6000u18x,2026-10-09T18:37:46Z,2026-10-09 13:37:46,7.4362,-80.4012,10.0,5.8,mb,"1 km S of El Cacao, Panama",reviewed
+us6000u195,2026-10-09T18:47:04Z,2026-10-09 13:47:04,7.5783,-81.0943,10.0,5.0,mb,"19 km S of Leones Arriba, Panama",reviewed
+us6000u194,2026-10-09T18:50:12Z,2026-10-09 13:50:12,7.3504,-80.1178,10.0,5.0,mb,"18 km S of Los Asientos, Panama",reviewed
+us6000u197,2026-10-09T19:04:49Z,2026-10-09 14:04:49,7.6161,-81.2492,10.0,5.0,mb,"14 km SE of Río Grande, Panama",reviewed
+us6000u198,2026-10-09T19:17:22Z,2026-10-09 14:17:22,7.6086,-81.0415,25.962,4.8,mb,"14 km SSW of Tebario, Panama",reviewed
+us6000u19c,2026-10-09T19:32:19Z,2026-10-09 14:32:19,7.5147,-80.5899,10.0,4.7,mb,"8 km N of La Tronosa, Panama",reviewed
+us6000u19e,2026-10-09T19:42:50Z,2026-10-09 14:42:50,7.5554,-80.2145,10.0,4.5,mb,"5 km N of Oria Arriba, Panama",reviewed
+us6000u19i,2026-10-09T19:45:58Z,2026-10-09 14:45:58,7.5448,-80.1336,10.0,4.8,mb,"2 km N of Los Asientos, Panama",reviewed
+us6000u19h,2026-10-09T19:48:55Z,2026-10-09 14:48:55,7.6417,-81.2677,10.0,5.2,mb,"11 km SE of Río Grande, Panama",reviewed
+us6000u19s,2026-10-09T20:20:23Z,2026-10-09 15:20:23,7.6169,-81.0268,10.0,4.9,mb,"12 km SSW of Tebario, Panama",reviewed
+us6000u19t,2026-10-09T20:21:37Z,2026-10-09 15:21:37,7.4734,-80.5491,10.0,5.0,mb,"6 km NE of La Tronosa, Panama",reviewed
+us6000u19w,2026-10-09T20:25:39Z,2026-10-09 15:25:39,7.7176,-81.4687,10.0,6.6,mww,"14 km W of Río Grande, Panama",reviewed
+us6000u1a5,2026-10-09T20:41:04Z,2026-10-09 15:41:04,7.6771,-81.0923,10.0,4.9,mb,"8 km SSE of Leones Arriba, Panama",reviewed
+us6000u1aa,2026-10-09T20:42:08Z,2026-10-09 15:42:08,7.7249,-81.4589,10.0,5.0,mb,"13 km W of Río Grande, Panama",reviewed
+us6000u1a6,2026-10-09T20:54:56Z,2026-10-09 15:54:56,7.8349,-81.467,10.0,4.9,mb,"16 km SSW of Calidonia, Panama",reviewed
+us6000u1a9,2026-10-09T21:05:25Z,2026-10-09 16:05:25,7.7299,-81.452,10.0,4.9,mb,"13 km W of Río Grande, Panama",reviewed
+us6000u1ai,2026-10-09T21:47:49Z,2026-10-09 16:47:49,7.7551,-81.319,10.0,4.6,mb,"4 km NNE of Río Grande, Panama",reviewed
+us6000u1ax,2026-10-09T23:10:02Z,2026-10-09 18:10:02,7.3962,-80.5284,10.0,5.0,mb,"8 km ESE of La Tronosa, Panama",reviewed
+us6000u1ay,2026-10-09T23:12:37Z,2026-10-09 18:12:37,7.4366,-80.0968,10.0,5.4,mb,"9 km SSE of Los Asientos, Panama",reviewed
+us6000u1az,2026-10-09T23:23:13Z,2026-10-09 18:23:13,7.6651,-81.4005,10.0,4.9,mb,"9 km SW of Río Grande, Panama",reviewed
+us6000u1b3,2026-10-09T23:54:22Z,2026-10-09 18:54:22,7.1444,-79.8903,10.0,4.5,mb,"45 km SSE of Pedasí, Panama",reviewed
+us6000u1b4,2026-10-09T23:57:38Z,2026-10-09 18:57:38,7.7378,-81.4599,10.0,4.7,mb,"14 km W of Río Grande, Panama",reviewed
+us6000u1b5,2026-10-10T00:03:04Z,2026-10-09 19:03:04,7.4053,-80.2957,10.0,4.8,mb,"5 km SW of Cañas, Panama",reviewed
+us6000u1bg,2026-10-10T00:45:20Z,2026-10-09 19:45:20,7.5127,-80.0092,10.0,4.0,mb,"2 km SE of Pedasí, Panama",reviewed
+us6000u1bj,2026-10-10T00:51:48Z,2026-10-09 19:51:48,7.5164,-80.5568,10.0,4.6,mb,"9 km NNE of La Tronosa, Panama",reviewed
+us6000u1bl,2026-10-10T01:11:47Z,2026-10-09 20:11:47,7.5302,-80.5858,10.0,4.7,mb,"10 km N of La Tronosa, Panama",reviewed
+us6000u1bp,2026-10-10T01:35:47Z,2026-10-09 20:35:47,7.6272,-81.3237,10.0,4.6,mb,"10 km S of Río Grande, Panama",reviewed
+us6000u1bu,2026-10-10T02:26:32Z,2026-10-09 21:26:32,7.4178,-80.4348,10.0,5.1,mb,"1 km NNE of Tonosí, Panama",reviewed
+us6000u1bw,2026-10-10T02:43:38Z,2026-10-09 21:43:38,7.5746,-81.2493,10.0,4.5,mb,"18 km SSE of Río Grande, Panama",reviewed
+us6000u1cb,2026-10-10T03:56:17Z,2026-10-09 22:56:17,7.5141,-80.5849,10.0,4.7,mb,"8 km N of La Tronosa, Panama",reviewed
+us6000u1cf,2026-10-10T04:14:01Z,2026-10-09 23:14:01,7.5068,-80.5985,10.0,6.0,mww,"7 km N of La Tronosa, Panama",reviewed
+us6000u1ck,2026-10-10T04:33:03Z,2026-10-09 23:33:03,7.5239,-80.4791,10.0,4.5,mb,"9 km WNW of Flores, Panama",reviewed
+us6000u1cs,2026-10-10T05:21:07Z,2026-10-10 00:21:07,7.5274,-81.3734,10.0,4.4,mb,"21 km SSW of Río Grande, Panama",reviewed
+us6000u1cz,2026-10-10T06:04:20Z,2026-10-10 01:04:20,7.7715,-80.9764,10.0,4.3,mb,"5 km N of Tebario, Panama",reviewed
+us6000u1d1,2026-10-10T06:16:32Z,2026-10-10 01:16:32,7.3167,-79.9478,10.0,4.5,mb,"25 km SSE of Pedasí, Panama",reviewed
+us6000u1d2,2026-10-10T06:18:55Z,2026-10-10 01:18:55,7.3663,-80.3171,10.0,4.9,mb,"10 km SSW of Cañas, Panama",reviewed
+us6000u1d5,2026-10-10T06:27:09Z,2026-10-10 01:27:09,7.2969,-79.9827,10.0,4.7,mb,"26 km S of Pedasí, Panama",reviewed
+us6000u1d7,2026-10-10T06:30:03Z,2026-10-10 01:30:03,7.2997,-79.9687,10.0,4.9,mb,"26 km SSE of Pedasí, Panama",reviewed
+us6000u1db,2026-10-10T06:47:49Z,2026-10-10 01:47:49,7.4558,-79.9613,10.0,4.5,mb,"10 km SE of Pedasí, Panama",reviewed
+us6000u1dc,2026-10-10T07:13:30Z,2026-10-10 02:13:30,7.6182,-80.5348,10.0,4.6,mb,"6 km SSE of Llano de Piedra, Panama",reviewed
+us6000u1df,2026-10-10T07:24:35Z,2026-10-10 02:24:35,7.6534,-80.5839,10.0,4.4,mb,"2 km WSW of Llano de Piedra, Panama",reviewed
+us6000u1dx,2026-10-10T09:48:18Z,2026-10-10 04:48:18,7.3754,-80.0853,10.0,4.2,mb,"16 km SSE of Los Asientos, Panama",reviewed
+us6000u1e5,2026-10-10T10:35:11Z,2026-10-10 05:35:11,7.7463,-81.3092,10.0,4.8,mb,"4 km NE of Río Grande, Panama",reviewed
+us6000u1em,2026-10-10T12:34:08Z,2026-10-10 07:34:08,7.689,-80.9902,10.0,4.3,mb,"3 km SSW of Tebario, Panama",reviewed
+us6000u1ev,2026-10-10T13:22:13Z,2026-10-10 08:22:13,7.5481,-80.166,10.0,4.5,mb,"4 km NW of Los Asientos, Panama",reviewed
+us6000u1ex,2026-10-10T13:46:56Z,2026-10-10 08:46:56,7.5187,-80.5165,10.0,4.8,mww,"12 km NE of La Tronosa, Panama",reviewed
+us6000u1f3,2026-10-10T14:51:45Z,2026-10-10 09:51:45,7.5178,-80.6744,10.0,4.5,mb,"10 km NNW of El Cortezo, Panama",reviewed
+us6000u1f6,2026-10-10T14:59:23Z,2026-10-10 09:59:23,7.8256,-81.3036,10.0,4.5,mb,"5 km WNW of Guarumal, Panama",reviewed
+us6000u1fj,2026-10-10T15:58:19Z,2026-10-10 10:58:19,7.6231,-81.0112,10.0,4.8,mww,"11 km SSW of Tebario, Panama",reviewed
+us6000u1fk,2026-10-10T16:05:42Z,2026-10-10 11:05:42,7.4596,-80.4282,13.518,4.7,mww,"2 km WNW of El Cacao, Panama",reviewed
+us6000u1hj,2026-10-11T00:06:09Z,2026-10-10 19:06:09,7.8093,-81.472,10.0,4.6,mb,"18 km WNW of Río Grande, Panama",reviewed
+us6000u1hw,2026-10-11T01:50:52Z,2026-10-10 20:50:52,7.5139,-80.4283,10.0,5.0,mb,"3 km NW of Flores, Panama",reviewed
+us6000u1i9,2026-10-11T03:18:14Z,2026-10-10 22:18:14,7.6705,-80.6908,10.0,4.4,mb,"3 km NW of Pitaloza Arriba, Panama",reviewed
+us6000u1lf,2026-10-11T17:11:29Z,2026-10-11 12:11:29,7.7084,-81.6209,10.0,4.8,mb,"31 km W of Río Grande, Panama",reviewed
+us6000u1me,2026-10-11T21:19:20Z,2026-10-11 16:19:20,7.7202,-81.5862,10.0,4.5,mb,"27 km W of Río Grande, Panama",reviewed
+us6000u1my,2026-10-11T22:25:36Z,2026-10-11 17:25:36,7.6721,-81.4949,10.0,4.4,mb,"18 km WSW of Río Grande, Panama",reviewed
+us6000u1mz,2026-10-11T22:40:24Z,2026-10-11 17:40:24,7.7569,-81.1135,10.0,4.6,mb,"0 km NE of Leones Arriba, Panama",reviewed
+us6000u1ny,2026-10-12T02:22:29Z,2026-10-11 21:22:29,7.6112,-80.0698,10.0,4.5,mb,"7 km ENE of Lajamina, Panama",reviewed
