@@ -1,121 +1,137 @@
 # Sismo Alerta
 
-Notificaciones de sismos para Panamá y la región, con la **intensidad estimada en tu ubicación**, un mapa de los sismos recientes y una **simulación de las ondas P y S** viajando desde el epicentro.
+**English** · [Español](README.es.md)
 
-> **Importante:** esto **no es una alerta temprana**. Las agencias publican cada sismo minutos después de que ocurre. Para un sismo cercano, la sacudida llega antes que el aviso. Sirve para saber al instante qué fue, de qué tamaño y cómo te afectó, y para seguir las réplicas. Ante un sismo fuerte, sigue las indicaciones de SINAPROC.
+**Live:** https://sismo-alerta-235ca.web.app/?lang=en · Built with [Claude](https://claude.ai): it started as a Claude Dashboard, and Claude wrote the code, the tests and the deployment setup.
+
+![Live page: key figures and every earthquake by time and magnitude](docs/dashboard-en.png)
+
+Earthquake tracking and alerts for Panama and the region, with the **estimated intensity where you are**, a map of recent earthquakes and a **simulation of the P and S waves** traveling from the epicenter. It started with the M7.7 earthquake of October 9, 2026 and its aftershocks.
+
+> **Important:** this is **not an early warning**. Agencies publish each earthquake minutes after it happens; for a nearby quake, the shaking arrives before the notice. It's for knowing right away what it was, how big, how it affected you, and for following the aftershocks. In a strong earthquake, follow the instructions of SINAPROC, Panama's civil protection agency.
 
 ```
 EMSC (IGC, UNA, EMSC…)  ──WebSocket──┐
-EMSC FDSN (cada 30 s)  ──────────────┼──► Cloud Run "sismo-ingestor" ──► Firestore  events/{id}
-USGS (cada 30 s)  ───────────────────┘        │  agrupa orígenes del mismo sismo
-                                              │  calcula la intensidad en cada teléfono
-                                              └─► FCM ──► app Flutter (notificación)
-app Flutter ──► Firestore devices/{uid}: token, ubicación (~1 km), umbral, ajuste local
+EMSC FDSN (every 30 s)  ─────────────┼──► Cloud Run "sismo-ingestor" ──► Firestore  events/{id}
+USGS (every 30 s)  ──────────────────┘        │  merges solutions of the same quake
+                                              │  estimates the intensity at each phone
+                                              └─► FCM ──► Flutter app (notification)
+Flutter app ──► Firestore devices/{uid}: token, location (~1 km), threshold, local adjustment
 ```
 
-## Qué hay en el repo
+## What's in the repo
 
-| Carpeta | Qué es |
+| Folder | What it is |
 |---|---|
-| `backend/` | Servicio Python (aiohttp) para Cloud Run. Escucha el WebSocket del EMSC y además consulta EMSC y USGS cada 30 s como respaldo. Une las soluciones de distintas agencias en un solo evento, lo guarda en Firestore y manda la notificación a cada teléfono cuya intensidad estimada supere su umbral. |
-| `app/` | App Flutter (Android e iOS). Incluye el mapa de sismos recientes coloreados por la intensidad que tendrían donde estás, el detalle con la animación de las ondas P y S y las zonas de intensidad que deja la onda S, y los ajustes de umbral, ubicación y ajuste local. |
-| `web/` | Página web pública en vivo: mapa de epicentros con reproducción, gráficas, intensidad estimada en un lugar de referencia y tabla. Lee el EMSC directamente desde el navegador de cada visitante, sin servidor. |
-| `infra/` | Reglas de Firestore y `deploy.sh` para Cloud Run. |
-| `.github/workflows/ci.yml` | Pruebas del backend y, para la app, análisis, pruebas y compilación Android en cada push. |
+| `web/` | The public live page: map of epicenters with playback, charts, estimated intensity at a reference place, the official USGS aftershock forecast and a table. Spanish and English. It reads EMSC straight from each visitor's browser, with no server. |
+| `backend/` | Python service (aiohttp) for Cloud Run. It listens to the EMSC WebSocket and also polls EMSC and USGS every 30 s as a fallback. It merges the solutions from different agencies into one event, stores it in Firestore and notifies every phone whose estimated intensity is above its threshold. |
+| `app/` | Flutter app (Android and iOS): a map of recent earthquakes colored by the intensity they'd have where you are, a detail view with the P and S wave animation and the intensity zones the S wave leaves behind, and settings for threshold, location and local adjustment. |
+| `infra/` | Firestore rules and `deploy.sh` for Cloud Run. |
+| `.github/workflows/` | CI on every push (backend tests; web unit and browser tests; app analysis, tests and Android build) and the optional web deploy. |
 
-## Cómo se estima la intensidad
+## How intensity is estimated
 
-Se usa la ecuación de Atkinson, Worden y Wald (2014), con la magnitud y la distancia hipocentral, más un **ajuste local** configurable en la app.
+The page and the app use the Atkinson, Worden & Wald (2014) intensity prediction equation, with magnitude and hypocentral distance, plus a configurable **local adjustment**.
 
-Con el sismo M7.7 del 9 de octubre de 2026, el modelo coincide con lo que reportó la gente al USGS ("Did You Feel It?") en Chitré (6.5) y en Santiago (6.2). En Ciudad de Panamá, en cambio, el modelo da 4.6 contra 5.2 reportado. Por eso el ajuste local viene en **+0.6** por defecto. La misma fórmula está en `backend/app/intensity.py` y en `app/lib/core/intensity.dart`, y ambas tienen pruebas con esos datos.
+For the M7.7 earthquake of October 9, 2026, the model matches what people reported to USGS "Did You Feel It?" in Chitré (6.5) and Santiago (6.2). In Panama City, though, the model gives 4.6 against 5.1 reported (169 reports), so the local adjustment defaults to **+0.6** there. The same formula lives in `backend/app/intensity.py`, `app/lib/core/intensity.dart` and `web/js/intensity.js`, each tested against those data.
 
-Las ondas se animan con velocidades medias de la corteza: P a 6.0 km/s y S a 3.5 km/s.
+Waves are animated with average crustal speeds: P at 6.0 km/s and S at 3.5 km/s.
 
-## Puesta en marcha
+## Live page (`web/`)
 
-### 1. Firebase y Google Cloud
-1. **Proyecto:** crea un proyecto en Firebase (o usa uno de Google Cloud y agrégale Firebase).
-2. **Firestore:** créalo en modo nativo, en la región que prefieras (por ejemplo `us-east1`).
-3. **Autenticación:** en *Authentication → Sign-in method*, activa **Anónimo**.
-4. **Notificaciones en iPhone:** sube tu clave APNs en *Project settings → Cloud Messaging*.
+A static site with no build step (`index.html`, `js/`, `css/`, with d3 and Leaflet vendored in `vendor/`):
+- **On load:** it asks EMSC for the catalog since the mainshock, in pages of 300 events.
+- **Live:** it connects to the EMSC WebSocket and adds each new earthquake seconds after it's published.
+- **Fallback:** it polls the catalog every 2 minutes in case the connection drops.
 
-### 2. Backend
-```bash
-PROJECT_ID=tu-proyecto REGION=us-east1 ./infra/deploy.sh
-gcloud run services logs read sismo-ingestor --project tu-proyecto --region us-east1 --limit 50
-```
-Para probarlo en local sin tocar nada, usa `cd backend && DRY_RUN=true python -m app.main` y abre `localhost:8080/status`.
+It also reads the USGS "Did You Feel It?" reports and official aftershock forecast for the mainshock (`SEQUENCE.usgsEventId`), and lets you download the table as CSV, with a link to each earthquake's EMSC page. Colors follow a palette checked for color blindness, with separate steps for light and dark mode: one color per day of the sequence, red for the mainshock, gray for the week before, and the USGS ShakeMap intensity scale.
 
-**Costo:** el servicio necesita una instancia siempre encendida (1 vCPU, 512 MiB) para mantener abierto el WebSocket. Con los precios de Cloud Run son unos **US$40–45 al mes**, ya descontado el nivel gratuito; confírmalo en la calculadora de Google Cloud.
+To follow a different earthquake, change `SEQUENCE` in `web/js/config.js`.
 
-Si quieres pagar menos:
-- **Consultar cada 30 s sin WebSocket:** pon `POLL_SECONDS=30` y quita el WebSocket. Cloud Run sigue necesitando una instancia activa.
-- **Una VM `e2-micro`:** corre el mismo contenedor y entra en el nivel gratuito de Compute Engine en algunas regiones de EE. UU.
+The page is in Spanish and English. It follows the browser's language, and the ES/EN button at the top switches and remembers it. To share a link in one language, add `?lang=en` or `?lang=es`. All text lives in `web/js/i18n.js`.
 
-### 3. App
-Necesitas Flutter estable, Xcode para iOS y Android Studio para Android.
-```bash
-cd app
-python3 tool/setup_platforms.py      # crea android/ e ios/ y agrega permisos y configuración
-dart pub global activate flutterfire_cli
-flutterfire configure --project=tu-proyecto   # reemplaza lib/firebase_options.dart
-flutter run
-```
-En iOS, abre `ios/Runner.xcworkspace` y agrega las capacidades *Push Notifications* y *Background Modes → Remote notifications*.
-
-## Página web en vivo (`web/`)
-
-Es un sitio estático, sin paso de compilación, en `index.html`, `js/` y `css/`, con d3 y Leaflet incluidos en `vendor/`. Funciona así:
-- **Al abrir:** pide al EMSC el catálogo desde el sismo principal, en páginas de 300 eventos.
-- **En vivo:** se conecta al WebSocket del EMSC y agrega cada sismo nuevo segundos después de que se publica.
-- **Respaldo:** consulta el catálogo cada 2 minutos por si se cae la conexión.
-
-Además lee del USGS los reportes "Did You Feel It?" y el pronóstico oficial de réplicas del sismo principal (`SEQUENCE.usgsEventId`), y permite descargar la tabla en CSV con un enlace a la ficha de cada sismo en el EMSC. Los colores siguen una paleta validada para daltonismo, con pasos propios para modo claro y oscuro: azul en un solo tono para la antigüedad de los sismos y la escala de colores de intensidad del USGS (ShakeMap).
-
-Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
-
-La página está en español e inglés. Toma el idioma del navegador, y el botón ES/EN de arriba lo cambia y lo recuerda. Para compartir un enlace en un idioma, agrega `?lang=en` o `?lang=es`. Todos los textos están en `web/js/i18n.js`.
-
-**Probar en local**
+**Run locally**
 ```bash
 cd web
 npm run serve            # http://localhost:8080
-npm install && npm test && npm run e2e   # pruebas; la e2e usa datos fijos del 9 de octubre
+npm install && npm test && npm run e2e   # tests; e2e uses fixed data from October 9
 ```
 
-**Publicar en Firebase Hosting (una vez)**
+**Publish to Firebase Hosting (once)**
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase deploy --only hosting --project tu-proyecto    # desde la raíz del repo
+firebase deploy --only hosting --project your-project    # from the repo root
 ```
-Queda en `https://tu-proyecto.web.app`.
+It goes live at `https://your-project.web.app`.
 
-**Despliegue automático (opcional).** Cada push a `main` que toque `web/` se publica solo con dos ajustes del repositorio en GitHub:
-- **Variable `FIREBASE_PROJECT_ID`:** con el id de tu proyecto.
-- **Secreto `FIREBASE_SERVICE_ACCOUNT`:** con la clave JSON de una cuenta de servicio con el rol *Firebase Hosting Admin*.
+**Automatic deploy (optional).** Every push to `main` that touches `web/` is published, once two repository settings exist on GitHub:
+- **Variable `FIREBASE_PROJECT_ID`:** your project id.
+- **Secret `FIREBASE_SERVICE_ACCOUNT`:** the JSON key of a service account with the *Firebase Hosting Admin* role.
 
-**Costos.** Una primera visita descarga unos 160 KB comprimidos, y las siguientes, mucho menos.
-- **Plan gratuito (Spark):** el límite es de 360 MB al día, unas 2,000 primeras visitas diarias. Si se pasa del límite, **el sitio deja de servirse hasta el día siguiente**.
-- **Plan Blaze:** el exceso cuesta US$0.15/GB, unos 2 centavos por cada 1,000 visitas. Si vas a compartir el link en público, usa Blaze con una alerta de presupuesto (el backend de la app también lo necesita).
+**Costs.** A first visit downloads about 160 KB compressed; later ones much less.
+- **Free plan (Spark):** 360 MB a day, about 2,000 first visits. Past the limit, **the site stops being served until the next day**.
+- **Blaze plan:** extra transfer costs US$0.15/GB, about 2 cents per 1,000 visits. If you share the link publicly, use Blaze with a budget alert (the app backend needs it too).
 
-**Límites**
-- **Carga sobre el EMSC.** Cada visitante consulta al EMSC directamente, lo que va bien para cientos de personas. Si el link se vuelve viral, conviene que la página lea de un archivo que actualice el backend de la app, para no multiplicar las consultas.
-- **Mapas.** Sin configurar nada, el mapa usa los tiles de OpenStreetMap, que sirven para uso ligero. Para compartirlo en público, pide una clave gratuita de CARTO en https://carto.com/basemaps/apikey (uso no comercial: 5 millones de tiles al mes) y pégala en `TILES.cartoKey` de `web/js/config.js`.
+**Limits**
+- **Load on EMSC.** Each visitor queries EMSC directly, which is fine for hundreds of people. If the link goes viral, the page should read from a file the app backend updates instead.
+- **Maps.** With no setup the map uses OpenStreetMap's tiles, which are fine for light use. For public use, get a free CARTO key at https://carto.com/basemaps/apikey (non-commercial: 5 million tiles a month) and paste it into `TILES.cartoKey` in `web/js/config.js`.
 
-## Variables del backend
+## Setting up the app and backend
 
-| Variable | Por defecto | Para qué |
+### 1. Firebase and Google Cloud
+1. **Project:** create a Firebase project (or add Firebase to a Google Cloud one).
+2. **Firestore:** create it in native mode, in the region you prefer (for example `us-east1`).
+3. **Authentication:** under *Authentication → Sign-in method*, turn on **Anonymous**.
+4. **iPhone notifications:** upload your APNs key under *Project settings → Cloud Messaging*.
+
+### 2. Backend
+```bash
+PROJECT_ID=your-project REGION=us-east1 ./infra/deploy.sh
+gcloud run services logs read sismo-ingestor --project your-project --region us-east1 --limit 50
+```
+To try it locally without touching anything: `cd backend && DRY_RUN=true python -m app.main`, then open `localhost:8080/status`.
+
+**Cost:** the service needs one always-on instance (1 vCPU, 512 MiB) to keep the WebSocket open. At Cloud Run prices that's about **US$40–45 a month** after the free tier; check it in the Google Cloud pricing calculator.
+
+To pay less:
+- **Poll every 30 s without the WebSocket:** set `POLL_SECONDS=30` and drop the WebSocket. Cloud Run still needs an active instance.
+- **An `e2-micro` VM:** runs the same container and falls within the Compute Engine free tier in some U.S. regions.
+
+### 3. App
+You need stable Flutter, Xcode for iOS and Android Studio for Android.
+```bash
+cd app
+python3 tool/setup_platforms.py      # creates android/ and ios/ with permissions and settings
+dart pub global activate flutterfire_cli
+flutterfire configure --project=your-project   # replaces lib/firebase_options.dart
+flutter run
+```
+On iOS, open `ios/Runner.xcworkspace` and add the *Push Notifications* and *Background Modes → Remote notifications* capabilities.
+
+## Backend settings
+
+| Variable | Default | What for |
 |---|---|---|
-| `WATCH_MIN_LAT`, `WATCH_MAX_LAT`, `WATCH_MIN_LON`, `WATCH_MAX_LON` | 2…13 N, 87…73 O | Zona vigilada |
-| `MIN_MAG_STORE` | 2.5 | Magnitud mínima que se guarda |
-| `POLL_SECONDS` | 30 | Cada cuánto se consultan EMSC y USGS |
-| `MAX_NOTIFY_AGE_S` | 1200 | No notificar sismos con más de 20 min de antigüedad |
-| `RENOTIFY_DELTA` | 1.0 | Mandar una actualización si la intensidad estimada sube al menos esto |
-| `DRY_RUN` | false | No escribe ni envía nada (para pruebas) |
+| `WATCH_MIN_LAT`, `WATCH_MAX_LAT`, `WATCH_MIN_LON`, `WATCH_MAX_LON` | 2…13 N, 87…73 W | Area watched |
+| `MIN_MAG_STORE` | 2.5 | Smallest magnitude stored |
+| `POLL_SECONDS` | 30 | How often EMSC and USGS are polled |
+| `MAX_NOTIFY_AGE_S` | 1200 | Don't notify quakes older than 20 min |
+| `RENOTIFY_DELTA` | 1.0 | Send an update if the estimated intensity rises at least this much |
+| `DRY_RUN` | false | Writes and sends nothing (for testing) |
 
-## Limitaciones conocidas
-- **Retraso de minutos.** El IGC y el EMSC publican de 3 a 10 minutos después del sismo. Un aviso que llegue antes de la sacudida requiere sensores propios o un sistema oficial.
-- **Ubicación con la app abierta.** La ubicación por GPS se actualiza al abrir la app y mientras está abierta. Para recibir alertas con la app cerrada, fija una ubicación (casa u oficina) en Ajustes.
-- **El modelo es un promedio.** La intensidad real varía en uno o más grados según el suelo, el edificio y el piso.
-- **Mapas de OpenStreetMap.** Usa los tiles públicos, que sirven para uso personal. Si la app crece, conviene un proveedor de tiles propio.
+## Known limitations
+- **Minutes of delay.** IGC and EMSC publish 3 to 10 minutes after the quake. A warning that arrives before the shaking needs dedicated sensors or an official system.
+- **Location while the app is open.** GPS location updates when the app opens and while it's open. To get alerts with the app closed, set a fixed location (home or office) in Settings.
+- **The model is an average.** Real intensity varies by one degree or more with the ground, the building and the floor.
+- **OpenStreetMap tiles.** The app uses the public tiles, which are fine for personal use. If it grows, it should move to its own tile provider.
+
+## Data sources
+
+- Earthquakes: [EMSC Seismic Portal](https://www.seismicportal.eu), which brings together the Institute of Geosciences of the University of Panama (IGC), the National University of Costa Rica (UNA), USGS (NEIC) and EMSC.
+- "Did You Feel It?" reports and the aftershock forecast: [USGS](https://earthquake.usgs.gov/earthquakes/eventpage/us6000u18k).
+- Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+
+## License
+
+[MIT](LICENSE) © 2026 Noel Moreno Lemus
