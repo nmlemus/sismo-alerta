@@ -48,11 +48,28 @@ jobs:
         with:
           channel: stable
           cache: true
-      - run: flutter --version
+      - name: Flutter version
+        run: echo "::notice::$(flutter --version | head -1)"
       - name: Generate platform folders if missing
         run: python3 tool/setup_platforms.py
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
-      - run: flutter test
+      # Each step turns its errors into annotations, so they show up on the commit.
+      - name: Analyze
+        shell: bash
+        run: |
+          set +e
+          dart analyze --format=machine --no-fatal-warnings > analyze.txt 2>&1
+          code=$?
+          awk -F'|' 'NF>=8 && ($1=="ERROR" || $1=="WARNING") {printf "::%s file=app/%s,line=%s,col=%s::%s (%s)\n", ($1=="ERROR"?"error":"warning"), substr($4, length(ENVIRON["GITHUB_WORKSPACE"])+6), $5, $6, $8, $3}' analyze.txt
+          if grep -q '^ERROR|' analyze.txt; then exit 1; fi
+          [ $code -le 2 ] || { tail -20 analyze.txt | sed 's/^/::error::/'; exit 1; }
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee test.log || { grep -E "error|Error|Expected|Actual|FAILED" test.log | head -25 | sed 's/^/::error::/'; exit 1; }
       - name: Build Android (debug) to prove it compiles
-        run: flutter build apk --debug
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --debug 2>&1 | tee build.log || { grep -E "error|Error|What went wrong|e: |Execution failed|Could not" build.log | head -30 | sed 's/^/::error::/'; exit 1; }
