@@ -60,5 +60,10 @@ export const VIEWS = {
   country: [[7.0, -83.1], [9.7, -77.15]],
 };
 
+// Map tiles. With no key the map uses OpenStreetMap's own tiles, which are fine for
+// light use. For heavier public use, request a free CARTO key at
+// https://carto.com/basemaps/apikey (non-commercial: 5M tiles/month) and paste it here.
+export const TILES = { cartoKey: '' };
+
 export const RECENT_HOURS = 6; // events this recent get a ring on the map
 export const PLAY_SECONDS = 24; // how long the full playback takes

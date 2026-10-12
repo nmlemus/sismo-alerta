@@ -54,7 +54,23 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
       ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ type: 'FeatureCollection', features: feats }) })
       : route.fulfill({ status: 204, body: '' });
   });
-  await page.route(/basemaps\.cartocdn\.com/, (route) => route.fulfill({ contentType: 'image/png', body: PNG }));
+  const tileZooms = [];
+  await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com/, (route) => {
+    const z = /\/(\d+)\/\d+\/\d+(@2x)?\.png/.exec(route.request().url());
+    if (z) tileZooms.push(Number(z[1]));
+    return route.fulfill({ contentType: 'image/png', body: PNG });
+  });
+  if (vp.name === 'mobile') {
+    // Load while hidden (like a background tab) and show it a moment later.
+    // readyState 'interactive' comes before module scripts run.
+    await page.addInitScript(() => {
+      document.addEventListener('readystatechange', () => {
+        if (document.readyState !== 'interactive') return;
+        document.documentElement.style.display = 'none';
+        setTimeout(() => { document.documentElement.style.display = ''; }, 1500);
+      });
+    });
+  }
   let socket;
   await page.routeWebSocket(/seismicportal\.eu\/standing_order/, (ws) => { socket = ws; });
 
@@ -66,7 +82,9 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#big-mag')) === 'M6.6', `${vp.name}: largest aftershock M6.6`);
   check((await page.locator('#events tbody tr').count()) === 306, `${vp.name}: table lists 306 events`);
   check((await page.textContent('#live-text')) === 'En vivo', `${vp.name}: live status (got ${await page.textContent('#live-text')})`);
+  await page.waitForTimeout(vp.name === 'mobile' ? 1500 : 0);
   check((await page.locator('#map .leaflet-interactive').count()) > 300, `${vp.name}: map markers drawn`);
+  check(tileZooms.length > 0 && Math.max(...tileZooms) >= 6, `${vp.name}: map zoomed to the region (tile zoom ${Math.max(...tileZooms)})`);
   for (const id of ['#chart-timeline', '#chart-windows', '#chart-bands', '#chart-intensity']) {
     check((await page.locator(`${id} svg`).count()) === 1, `${vp.name}: ${id} drawn`);
   }

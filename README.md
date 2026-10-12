@@ -97,7 +97,7 @@ Queda en `https://tu-proyecto.web.app`.
 
 **Límites**
 - **Carga sobre el EMSC.** Cada visitante consulta al EMSC directamente, lo que va bien para cientos de personas. Si el link se vuelve viral, conviene que la página lea de un archivo que actualice el backend de la app, para no multiplicar las consultas.
-- **Mapas.** Los tiles son de CARTO y OpenStreetMap; su uso gratuito es razonable, pero no ilimitado.
+- **Mapas.** Sin configurar nada, el mapa usa los tiles de OpenStreetMap, que sirven para uso ligero. Para compartirlo en público, pide una clave gratuita de CARTO en https://carto.com/basemaps/apikey (uso no comercial: 5 millones de tiles al mes) y pégala en `TILES.cartoKey` de `web/js/config.js`.
 
 ## Variables del backend
 

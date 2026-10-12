@@ -80,6 +80,7 @@ h2 { font-size: 16px; font-weight: 600; margin: 0; }
 .seg .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .map { height: clamp(360px, 62vh, 620px); border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
 .leaflet-container { font: inherit; }
+@media (prefers-color-scheme: dark) { .map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9); } }
 .place span { font-size: 12px; font-weight: 600; color: #222; white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; position: relative; left: 4px; top: -8px; }
 @media (prefers-color-scheme: dark) { .place span { color: #eee; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000; } }
 .place::before { content: ""; position: absolute; width: 5px; height: 5px; left: -2px; top: -2px; background: currentColor; border-radius: 1px; color: #444; }

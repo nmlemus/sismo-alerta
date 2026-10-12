@@ -1,6 +1,6 @@
 // Leaflet map of the sequence with a time slider and playback.
 
-import { PLACES, PLAY_SECONDS, RECENT_HOURS, VIEWS } from './config.js';
+import { PLACES, PLAY_SECONDS, RECENT_HOURS, TILES, VIEWS } from './config.js';
 import { DAY_COLORS, MAIN_COLOR, OTHER_COLOR, fmtInt, fmtMag, fmtTime } from './format.js';
 import { radiusFor } from './charts.js';
 
@@ -34,17 +34,26 @@ export class QuakeMap {
   init() {
     const map = L.map(this.mapEl, { zoomSnap: 0.25, scrollWheelZoom: false, attributionControl: true });
     this.map = map;
-    map.fitBounds(VIEWS.zone);
+    // Fit the view once the container has a size (it may load hidden, e.g. in a
+    // background tab), and keep Leaflet's idea of the size current afterwards.
+    const fit = () => {
+      if (!this.mapEl.clientWidth || !this.mapEl.clientHeight) return;
+      map.invalidateSize();
+      if (!this.fitted) { map.fitBounds(VIEWS.zone); this.fitted = true; }
+    };
+    new ResizeObserver(fit).observe(this.mapEl);
+    fit();
     map.on('focus', () => map.scrollWheelZoom.enable());
     map.on('blur', () => map.scrollWheelZoom.disable());
 
-    const dark = window.matchMedia('(prefers-color-scheme: dark)');
-    const tiles = () => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark.matches ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`, {
-      subdomains: 'abcd', maxZoom: 18,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    });
-    this.tiles = tiles().addTo(map);
-    dark.addEventListener?.('change', () => { map.removeLayer(this.tiles); this.tiles = tiles().addTo(map); });
+    const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    const key = (TILES.cartoKey || '').trim();
+    L.tileLayer(key
+      ? `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(key)}`
+      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: key ? `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>` : osm,
+    }).addTo(map);
 
     map.createPane('quakes').style.zIndex = 450;
     map.createPane('labels').style.zIndex = 460;
@@ -71,6 +80,7 @@ export class QuakeMap {
     });
     this.viewBtns.forEach((b) => b.addEventListener('click', () => {
       this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      if (!this.fitted) return;
       map.flyToBounds(VIEWS[b.dataset.view], { duration: 0.6 });
     }));
   }
