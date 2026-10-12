@@ -193,6 +193,22 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(300);
   check((await page.locator('#events tbody tr').count()) === rowsAll && !page.url().includes('periodo'), `${vp.name}: back to everything`);
 
+  // area: the whole region counts the 55 events outside the original zone too
+  await page.click('[data-area="region"]');
+  await page.waitForTimeout(400);
+  check((await page.textContent('#n-after')) === '360', `${vp.name}: whole region counts 360 aftershocks (got ${await page.textContent('#n-after')})`);
+  check((await page.locator('#events tbody tr').count()) === 361 && page.url().includes('area=region'), `${vp.name}: whole region in the table and the address`);
+  check((await page.textContent('#area-note')).length > 0, `${vp.name}: area note shown`);
+  await page.click('[data-view="zone"]');
+  await page.waitForTimeout(900);
+  await page.click('[data-area="vista"]');
+  await page.waitForTimeout(400);
+  const n = Number(await page.textContent('#n-after'));
+  check(/^-?[\d.]+,-?[\d.]+,-?[\d.]+,-?[\d.]+$/.test(new URL(page.url()).searchParams.get('area') || '') && n > 0 && n <= 360, `${vp.name}: map view as the area (${n} aftershocks, ${new URL(page.url()).searchParams.get('area')})`);
+  await page.click('[data-area="zona"]');
+  await page.waitForTimeout(400);
+  check((await page.textContent('#n-after')) === '305' && !page.url().includes('area='), `${vp.name}: back to the aftershock zone`);
+
   // a live event from the WebSocket
   const t = new Date(Date.now() - 60e3).toISOString();
   socket.send(JSON.stringify({

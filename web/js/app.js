@@ -29,12 +29,21 @@ const state = {
   usgsError: false,
   rows: [],
   // Filters (also in the address: ?periodo=24h&mag=4). Period 'pre' shows the week before.
+  area: 'zona', // zona | region | vista: which earthquakes count as the sequence
+  areaBox: null, // for 'vista': the map view when it was chosen
   period: 'todo', // pre | todo | hoy | 24h | 6h
   minMag: 0, // 0 = all
   showPre: false,
 };
 
 const PERIODS = ['pre', 'todo', 'hoy', '24h', '6h'];
+
+/** The area whose earthquakes are shown and counted. The mainshock is always found in SEQUENCE.zone. */
+function areaBox() {
+  if (state.area === 'region') return SEQUENCE.region;
+  if (state.area === 'vista' && state.areaBox) return state.areaBox;
+  return SEQUENCE.zone;
+}
 const MAGS = [0, 3, 4, 5];
 
 /** Start of the period filter in ms; for the windows, also the start of the time axis. */
@@ -64,10 +73,11 @@ function derive() {
   const zone = all.filter((e) => e.t.getTime() >= start && inBox(e, SEQUENCE.zone));
   if (!zone.length) return null;
   const main = zone.reduce((a, b) => (b.mag > a.mag ? b : a));
-  const seq = zone.filter((e) => e.t > main.t).sort((a, b) => a.t - b.t);
-  const others = all.filter((e) => !inBox(e, SEQUENCE.zone) && e.t >= main.t);
+  const area = areaBox();
+  const seq = all.filter((e) => e.t > main.t && inBox(e, area)).sort((a, b) => a.t - b.t);
+  const others = all.filter((e) => !inBox(e, area) && e.t >= main.t && e !== main);
   const pre = all.filter((e) => e.t < main.t && e !== main).sort((a, b) => a.t - b.t);
-  pre.forEach((e) => { e.inZone = inBox(e, SEQUENCE.zone); });
+  pre.forEach((e) => { e.inZone = inBox(e, area); });
   const days = [];
   const dayOf = new Map();
   for (const e of [main, ...seq]) {
@@ -226,12 +236,13 @@ function render() {
   chart('#chart-timeline', drawTimeline, view);
   dayLegend($('#legend-timeline'), opts);
   const filtered = state.period !== 'todo' || state.minMag > 0;
+  setText('#area-note', state.area === 'zona' ? '' : t('f.areaNote', t('f.areaDesc')[state.area]));
   setText('#view-note', filtered
     ? t('f.showing', t('f.desc')[state.period], state.minMag ? `M${state.minMag}+` : '', fmtInt(rowsV.length + preV.length))
     : '');
   const preZone = d.pre.filter((e) => e.inZone);
   setText('#pre-note', state.showPre
-    ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '')
+    ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '', state.area === 'zona')
     : '');
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
@@ -240,6 +251,7 @@ function render() {
   mmiLegend($('#legend-intensity'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
   renderDyfi(main, reported);
   renderForecast();
+  map.setArea(areaBox());
   map.setData({
     main, seq: seqV, others: d.others.filter(pass), pre: preV, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
     now: Math.max(now, (s.latest || main).t.getTime()), from: windowed ? fromT : null,
@@ -516,20 +528,39 @@ function setupFilters() {
     const q = new URLSearchParams(location.search);
     if (PERIODS.includes(q.get('periodo'))) state.period = q.get('periodo');
     if (MAGS.includes(Number(q.get('mag')))) state.minMag = Number(q.get('mag'));
+    const a = q.get('area');
+    if (a === 'region') state.area = 'region';
+    const box = /^(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)$/.exec(a || '');
+    if (box) {
+      const [minLat, minLon, maxLat, maxLon] = box.slice(1).map(Number);
+      if (minLat < maxLat && minLon < maxLon) { state.area = 'vista'; state.areaBox = { minLat, minLon, maxLat, maxLon }; }
+    }
   } catch { /* no query string */ }
   const sync = () => {
     state.showPre = state.period === 'pre';
     document.querySelectorAll('[data-period]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.period === state.period)));
     document.querySelectorAll('[data-mag]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.mag) === state.minMag)));
+    document.querySelectorAll('[data-area]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.area === state.area)));
     try {
       const u = new URL(location.href);
       if (state.period === 'todo') u.searchParams.delete('periodo'); else u.searchParams.set('periodo', state.period);
       if (state.minMag) u.searchParams.set('mag', String(state.minMag)); else u.searchParams.delete('mag');
+      const ab = state.areaBox;
+      if (state.area === 'zona') u.searchParams.delete('area');
+      else u.searchParams.set('area', state.area === 'region' ? 'region' : [ab.minLat, ab.minLon, ab.maxLat, ab.maxLon].join(','));
       history.replaceState(history.state, '', u);
     } catch { /* not allowed here */ }
   };
   document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => { state.period = b.dataset.period; sync(); scheduleRender(); }));
   document.querySelectorAll('[data-mag]').forEach((b) => b.addEventListener('click', () => { state.minMag = Number(b.dataset.mag); sync(); scheduleRender(); }));
+  document.querySelectorAll('[data-area]').forEach((b) => b.addEventListener('click', () => {
+    state.area = b.dataset.area;
+    // "Map view" takes what the map shows right now; pressing it again after moving the map updates it.
+    if (state.area === 'vista') state.areaBox = map.visibleBox(SEQUENCE.region);
+    map.setArea(areaBox(), state.area !== 'vista');
+    sync();
+    scheduleRender();
+  }));
   sync();
 }
 

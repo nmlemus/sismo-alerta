@@ -114,7 +114,7 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .fgroup { display: inline-flex; align-items: center; gap: 8px; }
 .flabel { color: var(--ink-2); font-size: 12px; }
 .fnote { flex-basis: 100%; margin: 0; font-size: 13px; }
-.fnote:has(span:empty + span:empty) { display: none; }
+.fnote:has(span:empty + span:empty + span:empty) { display: none; }
 .map { height: clamp(360px, 62vh, 620px); border-radius: 8px; border: 1px solid var(--border); background: var(--page); }
 .leaflet-container { font: inherit; background: var(--page); }
 .map .leaflet-tile-pane { filter: var(--tiles-filter); }

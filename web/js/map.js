@@ -102,6 +102,23 @@ export class QuakeMap {
 
   placeIcon(p) { return L.divIcon({ className: 'place', html: el('span', null, localName(p)), iconSize: null }); }
 
+  /** The area that counts (dotted box). fly: also move the map to it. */
+  setArea(box, fly = false) {
+    this.zone = box;
+    this.zoneRect.setBounds([[box.minLat, box.minLon], [box.maxLat, box.maxLon]]);
+    if (fly && this.fitted) this.map.flyToBounds(this.zoneRect.getBounds(), { duration: 0.6, padding: [20, 20] });
+  }
+
+  /** What the map shows now, as an area box clipped to `limit` (the region the page loads). */
+  visibleBox(limit) {
+    const b = this.map.getBounds();
+    const r = (v) => Math.round(v * 100) / 100;
+    return {
+      minLat: r(Math.max(limit.minLat, b.getSouth())), maxLat: r(Math.min(limit.maxLat, b.getNorth())),
+      minLon: r(Math.max(limit.minLon, b.getWest())), maxLon: r(Math.min(limit.maxLon, b.getEast())),
+    };
+  }
+
   /** Text that doesn't come with the data: town labels, legend, buttons. */
   relabel() {
     for (const { p, marker } of this.placeLabels || []) marker.setIcon(this.placeIcon(p));
