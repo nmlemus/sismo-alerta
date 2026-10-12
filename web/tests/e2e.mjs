@@ -135,6 +135,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.locator('#chart-timeline circle.dot').count()) === dotsBefore + 3, `${vp.name}: timeline adds the week before`);
   check((await page.locator('#chart-windows path.bar.s2').count()) === barsBefore + 28, `${vp.name}: 6-hour bars add 28 windows before`);
   check((await page.textContent('#pre-note')).includes('3 sismos en la región, 2 de ellos'), `${vp.name}: week-before note (${await page.textContent('#pre-note')})`);
+  check((await page.locator('#map .leaflet-pre-pane path').count()) === 3, `${vp.name}: week-before quakes drawn on the map`);
   await page.locator('#map-time').evaluate((n) => { n.value = '100'; n.dispatchEvent(new Event('input', { bubbles: true })); });
   check((await page.textContent('#map-time-label')).includes('antes del sismo principal'), `${vp.name}: slider goes before the mainshock`);
   if (OUT && vp.name === 'desktop') await page.screenshot({ path: join(OUT, 'pre-week.png'), fullPage: true });

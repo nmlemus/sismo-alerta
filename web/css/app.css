@@ -27,7 +27,7 @@
   --day-6: #008300;
   --day-7: #6250d6;
   --main: #d03b3b;
-  --pre: #898781;
+  --pre: #52514e;
   --good: #0ca30c;
   --warning: #fab219;
   --critical: #d03b3b;
@@ -57,7 +57,7 @@
     --day-6: #008300;
     --day-7: #9085e9;
     --main: #e66767;
-    --pre: #898781;
+    --pre: #c3c2b7;
     --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
     --tiles-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
   }

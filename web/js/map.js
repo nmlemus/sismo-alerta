@@ -71,6 +71,7 @@ export class QuakeMap {
     }).addTo(map);
 
     map.createPane('quakes').style.zIndex = 450;
+    map.createPane('pre').style.zIndex = 455; // the week before stays above the aftershocks
     map.createPane('labels').style.zIndex = 460;
     const z = this.zone;
     this.zoneRect = L.rectangle([[z.minLat, z.minLon], [z.maxLat, z.maxLon]], {
@@ -113,6 +114,13 @@ export class QuakeMap {
     if (showPre !== this.showPre) {
       this.showPre = showPre;
       if (!showPre && this.t != null && this.t < 0) this.t = 0;
+      if (this.fitted) {
+        const z = this.zone;
+        const bounds = L.latLngBounds([[z.minLat, z.minLon], [z.maxLat, z.maxLon]]);
+        if (showPre) pre.forEach((e) => bounds.extend([e.lat, e.lon]));
+        this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(!showPre && x.dataset.view === 'zone')));
+        this.map.flyToBounds(showPre ? bounds : VIEWS.zone, { duration: 0.6, padding: [20, 20] });
+      }
     }
     // Tick on the slider where the mainshock is.
     const zeroAt = Math.round((-this.tMin / (this.T - this.tMin)) * 1000);
@@ -131,7 +139,8 @@ export class QuakeMap {
       const sig = `${ev.lat},${ev.lon},${ev.mag},${kind},${ev.place}`;
       if (prev && prev.sig === sig) { prev.ev = ev; continue; }
       if (prev) this.layerOf(prev.kind).removeLayer(prev.marker);
-      const marker = L.circleMarker([ev.lat, ev.lon], { pane: 'quakes', radius: radiusFor(ev.mag) + (kind === 'main' ? 2 : 0), weight: 1 });
+      const radius = kind === 'pre' ? Math.max(6, radiusFor(ev.mag) + 2) : radiusFor(ev.mag) + (kind === 'main' ? 2 : 0);
+      const marker = L.circleMarker([ev.lat, ev.lon], { pane: kind === 'pre' ? 'pre' : 'quakes', radius, weight: 1 });
       marker.bindPopup(() => quakeCard(ev, NOTES[kind], true));
       if (kind === 'main') marker.bindTooltip(`M${fmtMag(ev.mag)}`, { permanent: true, direction: 'right', className: 'main-label', offset: [8, 0] });
       else marker.bindTooltip(() => quakeCard(ev, NOTES[kind], false), { direction: 'top', offset: [0, -4] });
@@ -168,7 +177,8 @@ export class QuakeMap {
 
   colorOf(m) {
     if (m.kind === 'main') return token('--main');
-    if (m.kind === 'other' || m.kind === 'pre') return token('--pre');
+    if (m.kind === 'pre') return token('--pre');
+    if (m.kind === 'other') return token('--muted');
     return this.palette.colorOf(this.dayIndex(m.ev));
   }
 
@@ -198,11 +208,10 @@ export class QuakeMap {
       m.key = key;
       if (m.kind === 'other') {
         m.marker.setStyle({ color: c, weight: 1.2, fillColor: c, fillOpacity: 0.15 });
+      } else if (m.kind === 'pre') {
+        m.marker.setStyle({ color: recent ? ink : surface, weight: 2, fillColor: c, fillOpacity: 0.95 });
       } else {
-        m.marker.setStyle({
-          color: recent ? ink : surface, weight: recent ? 2 : 1, fillColor: c,
-          fillOpacity: m.kind === 'pre' ? 0.6 : 0.85,
-        });
+        m.marker.setStyle({ color: recent ? ink : surface, weight: recent ? 2 : 1, fillColor: c, fillOpacity: 0.85 });
       }
     }
     const before = this.t != null && this.t < 0;
@@ -260,7 +269,7 @@ export class QuakeMap {
     for (const d of this.palette?.legend || []) add({ background: d.color }, d.label);
     if (this.showPre) add({ background: 'var(--pre)' }, `${SEQUENCE.preDays} días antes`);
     add({ background: 'transparent', border: '2px solid var(--ink)' }, `Últimas ${RECENT_HOURS} h del momento mostrado`);
-    add({ border: '1.5px solid var(--pre)', background: 'transparent' }, 'Fuera de la zona de réplicas (recuadro)');
+    add({ border: '1.5px solid var(--muted)', background: 'transparent' }, 'Fuera de la zona de réplicas (recuadro)');
     add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, 'Punto de referencia');
   }
 }
