@@ -96,6 +96,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(500);
   check((await page.textContent('#n-after')) === '305', `${vp.name}: 305 aftershocks in the zone (got ${await page.textContent('#n-after')})`);
   check((await page.textContent('#main-mag')) === 'M7.7', `${vp.name}: mainshock M7.7`);
+  check(/^\d+(\.\d)?$/.test(await page.textContent('#freq')) && (await page.textContent('#freq-sub')).includes('primeras 6 h'), `${vp.name}: current frequency tile (${await page.textContent('#freq')})`);
   check((await page.textContent('#big-mag')) === 'M6.6', `${vp.name}: largest aftershock M6.6`);
   check((await page.locator('#events tbody tr').count()) === 306, `${vp.name}: table lists 306 events`);
   check((await page.textContent('#live-text')) === 'En vivo', `${vp.name}: live status (got ${await page.textContent('#live-text')})`);
@@ -104,7 +105,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check(tileZooms.length > 0 && Math.max(...tileZooms) >= 6, `${vp.name}: map zoomed to the region (tile zoom ${Math.max(...tileZooms)})`);
   await page.waitForSelector('#forecast table', { timeout: 10000 });
   await page.waitForSelector('#chart-dyfi svg', { timeout: 10000 });
-  for (const id of ['#chart-timeline', '#chart-windows', '#chart-cumulative', '#chart-bands', '#chart-intensity', '#chart-dyfi']) {
+  for (const id of ['#chart-timeline', '#chart-rate', '#chart-windows', '#chart-cumulative', '#chart-bands', '#chart-intensity', '#chart-dyfi']) {
     check((await page.locator(`${id} svg`).count()) === 1, `${vp.name}: ${id} drawn`);
   }
   check((await page.locator('#forecast tbody tr').count()) === 3, `${vp.name}: forecast shows M5+, M6+, M7+`);

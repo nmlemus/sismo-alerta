@@ -2,7 +2,7 @@
 // Colors: series and MMI colors are CSS variables / the USGS ShakeMap scale; text uses ink tokens.
 
 import { MMI_COLORS, ROMAN, describeMmi, mmiAww2014, mmiLabel, mmiLevel } from './intensity.js';
-import { fmtInt, fmtMag, fmtTime, tickLabel, wall } from './format.js';
+import { fmtInt, fmtMag, fmtRate, fmtTime, tickLabel, wall } from './format.js';
 import { token } from './theme.js';
 import { emscLink } from './emsc.js';
 import { localName, t } from './i18n.js';
@@ -274,6 +274,105 @@ export function drawCumulative(el, { seq, main, now }) {
     const sc = el.clientWidth / W;
     tip.show([fmtTime(t), [token('--series-1'), t('cum.tipAll', fmtInt(vals[0]))], [token('--series-2'), t('win.m4', fmtInt(vals[1]))]], px * sc, 40);
   }).on('pointerleave', () => { tip.hide(); rule.attr('opacity', 0); });
+}
+
+/**
+ * Frequency over time and what it is made of, as three panels on one time axis
+ * (never two y-scales on one plot): earthquakes per hour (log scale, all and M4+),
+ * mean magnitude, and mean estimated intensity at the reference point. Each point
+ * covers the previous `windowH` hours.
+ */
+export function drawRate(el, { series, ref, main, now, windowH }) {
+  const panels = [{ key: 'rate', h: 150 }, { key: 'mag', h: 90 }, { key: 'mmi', h: 90 }];
+  const titleH = 22, gap = 16, axisH = 30;
+  const total = panels.reduce((a, p) => a + titleH + p.h + gap, 0) - gap + axisH;
+  const { svg, W, H } = newSvg(el, total);
+  const last = series[series.length - 1];
+  const rateLbl = (v) => `${fmtRate(v)}/h`;
+  const ends = [[t('cum.all'), last ? rateLbl(last.rate) : ''], ['M4+', last ? rateLbl(last.rateM4) : '']];
+  const endW = d3.max(ends, ([a, b]) => textWidth(svg, `${a} ${b}`, 'label strong')) + 18;
+  const m = { l: textWidth(svg, 'VIII', 'tick') + 14, r: Math.max(endW, 44) };
+  const x = d3.scaleUtc([wall(main.t), wall(new Date(now))], [m.l, W - m.r]);
+  let top = 0;
+  for (const p of panels) { p.y0 = top + titleH; p.y1 = p.y0 + p.h; top = p.y1 + gap; }
+  const [P1, P2, P3] = panels;
+  const title = (p, text) => svg.append('text').attr('class', 'tick strong').attr('x', m.l).attr('y', p.y0 - 8).text(text);
+  const base = (p) => svg.append('line').attr('class', 'axis').attr('x1', m.l).attr('x2', W - m.r).attr('y1', p.y1).attr('y2', p.y1);
+  const X = (d) => x(wall(d.t));
+
+  // 1. earthquakes per hour, log scale
+  const hi = Math.max(1, d3.max(series, (d) => d.rate) || 1) * 1.15;
+  const y1 = d3.scaleLog([0.1, hi], [P1.y1, P1.y0]).clamp(true);
+  yAxis(svg, y1, [0.1, 0.3, 1, 3, 10, 30, 100].filter((v) => v <= hi), m.l, W - m.r, (v) => String(v));
+  title(P1, t('rate.p1'));
+  base(P1);
+  const lines1 = [
+    { cls: 's1', get: (d) => d.rate, label: ends[0] },
+    { cls: 's2', get: (d) => d.rateM4, label: ends[1] },
+  ];
+  for (const l of lines1) {
+    svg.append('path').attr('class', `line ${l.cls}`)
+      .attr('d', d3.line(X, (d) => y1(l.get(d))).defined((d) => l.get(d) > 0)(series));
+  }
+  // end labels: colored mark + ink text, nudged apart if they collide
+  const labels = lines1.filter((l) => last && l.get(last) > 0).map((l) => ({ l, y: y1(l.get(last)) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 14) labels[i].y = labels[i - 1].y + 14;
+  for (const { l, y } of labels) {
+    const gx = W - m.r + 6;
+    svg.append('line').attr('class', `line ${l.cls}`).attr('x1', gx).attr('x2', gx + 8).attr('y1', y).attr('y2', y);
+    svg.append('text').attr('class', 'label strong').attr('x', gx + 12).attr('y', y).attr('dy', '0.32em').text(`${l.label[0]} ${l.label[1]}`);
+  }
+
+  // 2. mean magnitude
+  const mags = series.map((d) => d.meanMag).filter((v) => v != null);
+  const y2 = d3.scaleLinear([Math.min(2.5, (d3.min(mags) ?? 3) - 0.2), Math.max(4, (d3.max(mags) ?? 4) + 0.2)], [P2.y1, P2.y0]).nice();
+  yAxis(svg, y2, y2.ticks(3), m.l, W - m.r, (v) => v.toFixed(1));
+  title(P2, t('rate.p2'));
+  base(P2);
+  svg.append('path').attr('class', 'line s1').attr('d', d3.line(X, (d) => y2(d.meanMag)).defined((d) => d.meanMag != null)(series));
+
+  // 3. mean estimated intensity at the reference point
+  const mmis = series.map((d) => d.meanMmi).filter((v) => v != null);
+  const top3 = Math.max(4, Math.ceil((d3.max(mmis) ?? 3) + 0.5));
+  const y3 = d3.scaleLinear([1, top3], [P3.y1, P3.y0]);
+  yAxis(svg, y3, d3.range(1, top3 + 1), m.l, W - m.r, (v) => ROMAN[v]);
+  title(P3, t('rate.p3', localName(ref)));
+  svg.append('line').attr('class', 'ref').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y3(2.5)).attr('y2', y3(2.5));
+  svg.append('text').attr('class', 'tick').attr('x', W - m.r).attr('y', y3(2.5) - 5).attr('text-anchor', 'end').text(t('int.indoors'));
+  svg.append('path').attr('class', 'line s1').attr('d', d3.line(X, (d) => y3(d.meanMmi)).defined((d) => d.meanMmi != null)(series));
+  timeAxis(svg, x, P3.y1, W);
+
+  // crosshair + one tooltip for the three panels
+  if (!series.length) return;
+  const tip = tooltip(el);
+  const rule = svg.append('line').attr('class', 'crosshair').attr('y1', P1.y0).attr('y2', P3.y1).attr('opacity', 0);
+  const marks = [
+    { y: (d) => (d.rate > 0 ? y1(d.rate) : null), c: '--series-1' },
+    { y: (d) => (d.rateM4 > 0 ? y1(d.rateM4) : null), c: '--series-2' },
+    { y: (d) => (d.meanMag != null ? y2(d.meanMag) : null), c: '--series-1' },
+    { y: (d) => (d.meanMmi != null ? y3(d.meanMmi) : null), c: '--series-1' },
+  ].map((k) => ({ ...k, dot: svg.append('circle').attr('class', 'hover-dot').attr('r', 4).attr('opacity', 0) }));
+  const bis = d3.bisector((d) => X(d)).center;
+  svg.on('pointermove', (ev) => {
+    const [px, py] = d3.pointer(ev);
+    if (px < m.l || px > W - m.r) return;
+    const d = series[bis(series, px)];
+    const cx = X(d);
+    rule.attr('x1', cx).attr('x2', cx).attr('opacity', 1);
+    for (const k of marks) {
+      const cy = k.y(d);
+      k.dot.attr('cx', cx).attr('cy', cy ?? 0).attr('fill', token(k.c)).attr('opacity', cy == null ? 0 : 1);
+    }
+    const sc = el.clientWidth / W;
+    tip.show([
+      fmtTime(d.t),
+      t('rate.tipN', fmtInt(d.n), Math.round((d.t - d.from) / 3600e3) || windowH),
+      [token('--series-1'), t('rate.tipAll', fmtRate(d.rate))],
+      [token('--series-2'), t('rate.tipM4', fmtRate(d.rateM4))],
+      t('rate.tipMag', d.meanMag == null ? '—' : d.meanMag.toFixed(1)),
+      t('rate.tipMmi', localName(ref), d.meanMmi == null ? '—' : `${describeMmi(d.meanMmi)}, ${d.meanMmi.toFixed(1)}`),
+    ], cx * sc, py * sc);
+  }).on('pointerleave', () => { tip.hide(); rule.attr('opacity', 0); marks.forEach((k) => k.dot.attr('opacity', 0)); });
 }
 
 /** Aftershock counts by magnitude band (horizontal bars, one series). */

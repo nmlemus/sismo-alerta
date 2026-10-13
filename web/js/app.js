@@ -4,9 +4,10 @@ import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
 import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
-import { dayLegend, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
+import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
+import { rateSeries } from './stats.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange } from './theme.js';
 import { applyStatic, lang, localName, setLang, t, tOr } from './i18n.js';
@@ -120,6 +121,9 @@ function stats({ main, seq, pre }, now) {
     m4First12: first12.filter((e) => e.mag >= 4).length / Math.min(12, span),
     m4Last12: last12.filter((e) => e.mag >= 4).length / Math.min(12, span),
     latest: seq[seq.length - 1] || null,
+    // frequency now (last 6 h) and at the start (first 6 h), in earthquakes per hour
+    rateLast6: seq.filter((e) => hrs(e) >= span - 6).length / Math.min(6, span),
+    rateFirst6: seq.filter((e) => hrs(e) < 6).length / Math.min(6, span),
   };
 }
 
@@ -187,6 +191,8 @@ function render() {
   setText('#n-after-sub', t('after.sub', span, fmtInt(s.m5), fmtInt(s.m6)));
   setText('#big-mag', s.big ? `M${fmtMag(s.big.mag)}` : '—');
   setText('#big-sub', s.big ? `${fmtTime(s.big.t)} · ${s.big.place}` : '');
+  setText('#freq', fmtRate(s.rateLast6));
+  setText('#freq-sub', t('freq.sub', fmtRate(s.rateFirst6)));
   setText('#m4-rate', fmtRate(s.m4Last12));
   setText('#m4-sub', t('m4.sub', fmtRate(s.m4First12)));
   setText('#last-ago', s.latest ? ago(s.latest.t, now) : '—');
@@ -244,6 +250,9 @@ function render() {
   setText('#pre-note', state.showPre
     ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '', state.area === 'zona')
     : '');
+  const stepH = Math.max(1, Math.ceil((now - main.t) / H / 300)); // at most ~300 points
+  const series = rateSeries(seq, { start: main.t.getTime(), end: now, windowH: 6, stepH, mmiOf: (e) => estimateMmi(e, ref.lat, ref.lon, ref.siteAdjust) });
+  chart('#chart-rate', drawRate, { series, ref, main, now, windowH: 6 });
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
   chart('#chart-bands', drawBands, opts);

@@ -44,6 +44,11 @@
         <span class="sub" id="big-sub"></span>
       </div>
       <div class="card tile">
+        <span class="lbl" data-i18n="tile.freq">Frecuencia actual</span>
+        <span class="num" id="freq">—</span>
+        <span class="sub" id="freq-sub"></span>
+      </div>
+      <div class="card tile">
         <span class="lbl" data-i18n="tile.rate">Ritmo de réplicas fuertes</span>
         <span class="num" id="m4-rate">—</span>
         <span class="sub" id="m4-sub"></span>
@@ -108,6 +113,13 @@
       <p class="note" data-i18n="tl.note">Cada punto es un sismo, con tamaño según su magnitud, en hora de Panamá (UTC−5). El punto rojo es el sismo principal; el color de los demás indica el día. Pasa el cursor para ver los detalles y haz clic para abrir la ficha del sismo en EMSC.</p>
       <div class="chart skeleton" id="chart-timeline"></div>
       <div class="legend" id="legend-timeline"></div>
+    </section>
+
+    <section class="card" id="rate-card">
+      <h2 data-i18n="rate.h2">Frecuencia e intensidad en el tiempo</h2>
+      <p class="note" data-i18n="rate.note">Cada punto cuenta los sismos de las 6 horas anteriores. Arriba, cuántos llegan por hora (escala logarítmica: cada salto de la cuadrícula multiplica por 3 o por 10); en medio, su magnitud promedio; abajo, la intensidad promedio que tendrían en el lugar de referencia. Las primeras horas cuentan de menos: muchas réplicas pequeñas no se lograron detectar.</p>
+      <div class="legend top"><span><i class="sw s1"></i><span data-i18n="leg.all">Todas (M2.5+)</span></span><span><i class="sw s2"></i><span data-i18n="leg.m4">M4 o más</span></span></div>
+      <div class="chart skeleton" id="chart-rate"></div>
     </section>
 
     <section class="cols">

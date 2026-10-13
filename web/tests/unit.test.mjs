@@ -115,3 +115,25 @@ test('English: place names, intensity labels, forecast windows and CSV header', 
     setLang('es', { persist: false });
   }
 });
+
+// ---------------------------------------------------------------- frequency
+import { rateSeries } from '../js/stats.js';
+
+test('frequency: rolling 6-hour window, per hour, with means once there are enough events', () => {
+  const t0 = Date.parse('2026-10-09T18:00:00Z');
+  const at = (h, mag) => ({ t: new Date(t0 + h * 3600e3), mag });
+  const evs = [at(0.5, 5), at(1.5, 3), at(2.5, 4), at(3.5, 3), at(7.5, 3)];
+  const s = rateSeries(evs, { start: t0, end: t0 + 8 * 3600e3, windowH: 6, mmiOf: (e) => e.mag - 1 });
+  assert.equal(s.length, 8);
+  // at 4 h: 4 events in the 4 hours since the start (window can't reach back further)
+  assert.equal(s[3].n, 4);
+  assert.equal(s[3].rate, 1);
+  assert.equal(s[3].rateM4, 0.5);
+  assert.equal(s[3].meanMag, 3.75);
+  assert.equal(s[3].meanMmi, 2.75);
+  // at 8 h: window 2–8 h holds 2.5, 3.5 and 7.5 → 3 events / 6 h
+  assert.equal(s[7].n, 3);
+  assert.equal(s[7].rate, 0.5);
+  // fewer than 3 events: no mean
+  assert.equal(s[0].meanMag, null);
+});

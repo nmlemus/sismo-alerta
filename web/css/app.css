@@ -164,6 +164,7 @@ path.pulse { animation: pulse 1.6s ease-out infinite; }
 .chart .dot.s1 { fill: var(--series-1); fill-opacity: 0.55; stroke: var(--surface); stroke-width: 1; }
 .chart .dot.main { fill: var(--main); stroke: var(--surface); stroke-width: 2; }
 .chart .dot.mmi { stroke: rgba(0, 0, 0, 0.45); stroke-width: 1; }
+.chart .hover-dot { stroke: var(--surface); stroke-width: 2; pointer-events: none; }
 .chart .hover-ring, .chart .sel-ring { fill: none; stroke: var(--ink); stroke-width: 2; }
 .skeleton { background: linear-gradient(90deg, var(--grid), var(--border), var(--grid)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 8px; }
 @keyframes shimmer { to { background-position: -200% 0; } }

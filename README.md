@@ -48,6 +48,8 @@ It also reads the USGS "Did You Feel It?" reports and official aftershock foreca
 
 Filters above the map choose the period (week before, all, today, last 24 h, last 6 h) the minimum magnitude (M3+, M4+, M5+) and the area: the original aftershock zone, the whole region, or whatever the map shows (useful as the sequence moves). The area decides which earthquakes count everywhere on the page, figures included. Period and magnitude apply to the map, the timeline, the intensity chart, the table and the CSV; the figures at the top and the rate charts always count the whole sequence. Filters go in the address too, so a link like `?periodo=24h&mag=4&area=region` opens that view.
 
+The frequency chart shows, every hour, the earthquakes per hour over the previous 6 hours (all and M4+, on a log scale), with their mean magnitude and mean estimated intensity at the reference place in aligned panels below.
+
 To follow a different earthquake, change `SEQUENCE` in `web/js/config.js`.
 
 The page is in Spanish and English. It follows the browser's language, and the ES/EN button at the top switches and remembers it. To share a link in one language, add `?lang=en` or `?lang=es`. All text lives in `web/js/i18n.js`.

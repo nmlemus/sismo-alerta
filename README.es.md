@@ -80,6 +80,8 @@ Además lee del USGS los reportes "Did You Feel It?" y el pronóstico oficial de
 
 Los filtros sobre el mapa eligen el periodo (semana previa, todo, hoy, últimas 24 h, últimas 6 h) la magnitud mínima (M3+, M4+, M5+) y el área: la zona de réplicas inicial, toda la región o lo que muestra el mapa (útil porque la secuencia se va moviendo). El área decide qué sismos cuentan en toda la página, cifras incluidas. El periodo y la magnitud se aplican al mapa, la línea de tiempo, la gráfica de intensidad, la tabla y el CSV; las cifras de arriba y las gráficas de ritmo siempre cuentan toda la secuencia. Los filtros quedan en la dirección, así que un link como `?periodo=24h&mag=4&area=region` abre esa vista.
 
+La gráfica de frecuencia muestra, hora a hora, los sismos por hora de las 6 horas anteriores (todos y M4+, en escala logarítmica), y debajo, en paneles alineados, su magnitud promedio y la intensidad estimada promedio en el lugar de referencia.
+
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
 
 La página está en español e inglés. Toma el idioma del navegador, y el botón ES/EN de arriba lo cambia y lo recuerda. Para compartir un enlace en un idioma, agrega `?lang=en` o `?lang=es`. Todos los textos están en `web/js/i18n.js`.
