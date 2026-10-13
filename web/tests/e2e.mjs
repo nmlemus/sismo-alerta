@@ -48,6 +48,9 @@ function fdsn(url) {
   return feats.slice(0, Number(q.get('limit') || 300));
 }
 
+// The browser's clock is fixed to a moment covered by the fixture, so periods like
+// "last 24 h" don't depend on the day the test runs.
+const NOW = new Date('2026-10-12T22:00:00Z');
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); };
 
@@ -55,6 +58,7 @@ const browser = await chromium.launch();
 for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile', width: 390, height: 844 }]) {
   // Spanish browser; English is checked below with the ES/EN switch.
   const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height }, colorScheme: vp.name === 'mobile' ? 'dark' : 'light', locale: 'es-PA', hasTouch: vp.name === 'mobile' });
+  await page.clock.setFixedTime(NOW);
   await page.context().route(/eventdetails\.html/, (route) => route.fulfill({ contentType: 'text/html', body: '<title>EMSC</title>' }));
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -211,7 +215,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#n-after')) === '305' && !page.url().includes('area='), `${vp.name}: back to the aftershock zone`);
 
   // a live event from the WebSocket
-  const t = new Date(Date.now() - 60e3).toISOString();
+  const t = new Date(NOW.getTime() - 60e3).toISOString();
   socket.send(JSON.stringify({
     action: 'create',
     data: { type: 'Feature', id: 'TEST_1', geometry: { type: 'Point', coordinates: [-80.6, 7.5, -10] },
@@ -258,6 +262,35 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#ref-name')) === 'Ciudad de Panamá', `${vp.name}: reference name back in Spanish`);
 
   check(errors.length === 0, `${vp.name}: no page errors ${errors.length ? JSON.stringify(errors.slice(0, 3)) : ''}`);
+  await page.close();
+}
+// Analytics on (fake id): the production CSP must let gtag load, and filters send events.
+{
+  const page = await browser.newPage({ locale: 'es-PA' });
+  await page.clock.setFixedTime(NOW);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  let gtagLoaded = false;
+  await page.route(/js\/config\.js$/, async (route) => {
+    const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8').replace("measurementId: ''", "measurementId: 'G-TEST1234'");
+    await route.fulfill({ contentType: 'text/javascript', body, headers: { 'content-security-policy': CSP } });
+  });
+  await page.route(/googletagmanager\.com\/gtag\/js/, (route) => { gtagLoaded = true; return route.fulfill({ contentType: 'text/javascript', body: '/* gtag stub */' }); });
+  await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
+    const feats = fdsn(route.request().url());
+    return feats.length ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: feats }) }) : route.fulfill({ status: 204, body: '' });
+  });
+  await page.route(/tile\.openstreetmap\.org|earthquake\.usgs\.gov/, (route) => route.abort());
+  await page.routeWebSocket(/seismicportal\.eu/, () => {});
+  await page.goto(base);
+  await page.waitForFunction(() => document.querySelector('#n-after').textContent !== '—', null, { timeout: 15000 });
+  await page.click('[data-mag="4"]');
+  const events = await page.evaluate(() => window.dataLayer.map((a) => [...a]).filter((a) => a[0] === 'event').map((a) => `${a[1]}:${a[2].kind}=${a[2].value}`));
+  check(gtagLoaded, 'analytics: gtag script requested');
+  check(events.includes('filter:magnitude=4'), `analytics: filter event recorded (${events})`);
+  check(await page.isVisible('#analytics-note'), 'analytics: privacy note shown in the footer');
+  check(!errors.some((e) => /Content Security Policy|gtag/i.test(e)), `analytics: no CSP errors ${JSON.stringify(errors.filter((e) => /Content Security Policy|gtag/i.test(e)).slice(0, 2))}`);
   await page.close();
 }
 await browser.close();

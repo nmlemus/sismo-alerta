@@ -70,6 +70,10 @@ export const VIEWS = {
 // https://carto.com/basemaps/apikey (non-commercial: 5M tiles/month) and paste it here.
 export const TILES = { cartoKey: '' };
 
+// Visit statistics (countries, cities, where people come from). Paste the Google
+// Analytics 4 measurement ID ("G-…") of the Firebase project here; empty = off.
+export const ANALYTICS = { measurementId: '' };
+
 // Events this recent (relative to the moment shown) get a ring on the map.
 export const RECENT_HOURS = 6;
 // Day colors available before older days are grouped (validated categorical slots).

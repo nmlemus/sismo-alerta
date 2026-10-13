@@ -8,6 +8,7 @@ import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
+import { analyticsOn, track } from './analytics.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange } from './theme.js';
 import { applyStatic, lang, localName, setLang, t, tOr } from './i18n.js';
@@ -401,6 +402,7 @@ function renderTable(rows, main) {
 
 function downloadCsv() {
   if (!state.rows.length) return;
+  track('csv_download', { rows: state.rows.length });
   const blob = new Blob(['\ufeff', buildCsv(state.rows, state.ref, fmtTime)], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -480,6 +482,7 @@ function setupReference() {
   const sel = $('#ref-select');
   fillReferenceOptions();
   sel.addEventListener('change', () => {
+    track('reference', { value: sel.value });
     if (sel.value !== 'me') {
       state.ref = localRef(REFERENCES.find((r) => r.id === sel.value));
       scheduleRender();
@@ -518,6 +521,7 @@ function fillReferenceOptions() {
 function switchLanguage(l) {
   if (l === lang()) return;
   setLang(l);
+  track('language', { value: l });
   applyStatic();
   for (const ev of state.events.values()) upsert(ev);
   state.ref = state.ref.id === 'me' ? { ...state.ref, name: t('ref.meName') } : localRef(state.ref);
@@ -560,8 +564,8 @@ function setupFilters() {
       history.replaceState(history.state, '', u);
     } catch { /* not allowed here */ }
   };
-  document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => { state.period = b.dataset.period; sync(); scheduleRender(); }));
-  document.querySelectorAll('[data-mag]').forEach((b) => b.addEventListener('click', () => { state.minMag = Number(b.dataset.mag); sync(); scheduleRender(); }));
+  document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => { state.period = b.dataset.period; sync(); scheduleRender(); track('filter', { kind: 'period', value: state.period }); }));
+  document.querySelectorAll('[data-mag]').forEach((b) => b.addEventListener('click', () => { state.minMag = Number(b.dataset.mag); sync(); scheduleRender(); track('filter', { kind: 'magnitude', value: String(state.minMag) }); }));
   document.querySelectorAll('[data-area]').forEach((b) => b.addEventListener('click', () => {
     state.area = b.dataset.area;
     // "Map view" takes what the map shows right now; pressing it again after moving the map updates it.
@@ -569,6 +573,7 @@ function setupFilters() {
     map.setArea(areaBox(), state.area !== 'vista');
     sync();
     scheduleRender();
+    track('filter', { kind: 'area', value: state.area });
   }));
   sync();
 }
@@ -592,6 +597,7 @@ setInterval(scheduleRender, 60000); // keeps "hace N min" and the live time curr
 
 state.ref = localRef(state.ref);
 applyStatic();
+document.querySelector('#analytics-note').hidden = !analyticsOn;
 map.init();
 map.relabel();
 setupLanguage();

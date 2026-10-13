@@ -105,9 +105,11 @@ Queda en `https://tu-proyecto.web.app`.
 - **Variable `FIREBASE_PROJECT_ID`:** con el id de tu proyecto.
 - **Secreto `FIREBASE_SERVICE_ACCOUNT`:** con la clave JSON de una cuenta de servicio con el rol *Firebase Hosting Admin*.
 
-**Costos.** Una primera visita descarga unos 160 KB comprimidos, y las siguientes, mucho menos.
-- **Plan gratuito (Spark):** el límite es de 360 MB al día, unas 2,000 primeras visitas diarias. Si se pasa del límite, **el sitio deja de servirse hasta el día siguiente**.
+**Costos.** Una primera visita descarga unos 120 KB comprimidos (d3 va recortado a los módulos que usa la página: `web/tools/build-d3.sh`); las siguientes solo revalidan los archivos propios, unos pocos KB.
+- **Plan gratuito (Spark):** el límite es de 360 MB al día, unas 3,000 primeras visitas diarias. Se revisa en la consola de Firebase, en *Hosting → Uso*. Si se pasa del límite, **el sitio deja de servirse hasta el día siguiente**.
 - **Plan Blaze:** el exceso cuesta US$0.15/GB, unos 2 centavos por cada 1,000 visitas. Si vas a compartir el link en público, usa Blaze con una alerta de presupuesto (el backend de la app también lo necesita).
+
+**Estadísticas de visitas (opcional).** Pega el ID de medición de Google Analytics 4 (`G-…`) en `ANALYTICS.measurementId` de `web/js/config.js`. Las funciones de publicidad van apagadas, el pie de página lo avisa, y se registra qué filtros, idioma y lugar de referencia usa la gente. Sin ID no se carga nada.
 
 **Límites**
 - **Carga sobre el EMSC.** Cada visitante consulta al EMSC directamente, lo que va bien para cientos de personas. Si el link se vuelve viral, conviene que la página lea de un archivo que actualice el backend de la app, para no multiplicar las consultas.
