@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from .igc import PANAMA_TZ, IgcQuake, same_quake
+from .igc import PANAMA_TZ, IgcQuake, from_emsc, same_quake
 from .intensity import describe, epicentral_km, estimate_mmi
 
 PANAMA_CITY = (8.983, -79.52, 0.6)  # lat, lon, site adjustment (matches the web page)
@@ -59,8 +59,34 @@ def merge(known: dict[str, Known], current: list[IgcQuake], keep_days: float = 8
         out.known[entry.id] = entry
     # IGC lists 7 days; keep what dropped off for a while so it isn't "new" if it reappears.
     for k in pool:
+        if from_emsc(k.quake) and now - k.quake.time > timedelta(minutes=EMSC_GRACE_MIN):
+            continue  # taken from EMSC while IGC was down, and IGC's list never had it
         if now - k.quake.time < timedelta(days=keep_days):
             out.known[k.id] = k
+    return out
+
+
+EMSC_GRACE_MIN = 60  # how long IGC's list gets to show a quake first seen on EMSC
+
+
+def merge_backup(known: dict[str, Known], backup: list[IgcQuake]) -> MergeResult:
+    """Like merge(), for the IGC quakes relayed by EMSC while IGC's own list is
+    unavailable. They only add what IGC's list doesn't have: a quake already known
+    from IGC keeps IGC's data, and one known from EMSC follows EMSC's updates."""
+    out = MergeResult(known=dict(known))
+    pool = list(known.values())
+    for q in backup:
+        match = next((k for k in pool if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
+        if match:
+            pool.remove(match)
+            if from_emsc(match.quake) and signature(q) != signature(match.quake):
+                entry = Known(match.id, q, match.message_id, match.sent_signature)
+                out.changed.append(entry)
+                out.known[entry.id] = entry
+        else:
+            entry = Known(q.id, q)
+            out.new.append(entry)
+            out.known[entry.id] = entry
     return out
 
 
@@ -121,12 +147,12 @@ def message(q: IgcQuake, dashboard_url: str = "") -> str:
         f"⬇️ {q.depth_km:.0f} km de profundidad",
         "",
         f"🏙️ En Ciudad de Panamá: intensidad <b>{describe(mmi)}</b>, estimada",
-    ])
+    ] + (["", "<i>ℹ️ Datos del IGC tomados de EMSC: la lista del IGC no está disponible ahora.</i>"] if from_emsc(q) else []))
 
 
 def buttons(q: IgcQuake, dashboard_url: str) -> list[list[dict]]:
     """Inline buttons under the message (Telegram inline keyboard)."""
-    return [[{"text": "🗺️ Ficha del IGC", "url": q.url}, {"text": "📈 Réplicas en vivo", "url": dashboard_url}]]
+    return [[{"text": "🗺️ Ficha en EMSC" if from_emsc(q) else "🗺️ Ficha del IGC", "url": q.url}, {"text": "📈 Réplicas en vivo", "url": dashboard_url}]]
 
 
 MOVE_KM = 5  # a few km is within the usual location error: not worth a line
@@ -147,7 +173,9 @@ def revision_note(before: IgcQuake, after: IgcQuake) -> str | None:
     else:
         parts.append(f"Magnitud: M{after.mag:.1f}, sin cambios")
     moved = epicentral_km(before.lat, before.lon, after.lat, after.lon)
-    if _place(before) != _place(after):
+    # A quake first taken from EMSC got its place text from us, not IGC: only a real move counts.
+    same_wording = from_emsc(before) == from_emsc(after)
+    if _place(before) != _place(after) and (same_wording or moved >= MOVE_KM):
         parts.append(f"Lugar: {_esc(_place(before))} → <b>{_esc(_place(after))}</b>")
     elif moved >= MOVE_KM:
         parts.append(f"Epicentro ajustado {moved:.0f} km; sigue a {_esc(_place(after))}")
@@ -158,7 +186,9 @@ def revision_note(before: IgcQuake, after: IgcQuake) -> str | None:
     newly_reviewed = after.reviewed and not before.reviewed
     if len(parts) == 1 and parts[0].endswith("sin cambios") and not newly_reviewed:
         return None  # only a small nudge of the coordinates: nothing a reader would notice
-    head = "✏️ <b>Revisado por el IGC</b>" if newly_reviewed else "✏️ <b>Actualizado por el IGC</b>"
+    head = ("✏️ <b>Revisado por el IGC</b>" if newly_reviewed
+            else "✏️ <b>Ya en la lista del IGC</b>" if from_emsc(before) and not from_emsc(after)
+            else "✏️ <b>Actualizado por el IGC</b>")
     return head + "\n\n" + "\n".join(f"• {p}" for p in parts)
 
 
@@ -166,7 +196,8 @@ def edited_footer(before: IgcQuake) -> str:
     """Last line of an edited message: what it said before, so it reads on its own
     (the reply under it has the full before → after)."""
     state = "revisado" if before.reviewed else "preliminar"
-    return f"<i>✏️ Editado · antes: M{before.mag:.1f} {state}, {_esc(_place(before))}</i>"
+    via = " (vía EMSC)" if from_emsc(before) else ""
+    return f"<i>✏️ Editado · antes: M{before.mag:.1f} {state}{via}, {_esc(_place(before))}</i>"
 
 
 def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":

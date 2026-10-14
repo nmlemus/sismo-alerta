@@ -205,3 +205,136 @@ def test_revision_note_and_cluster_note():
     far = q.__class__(q.time, 7.40, -80.22, 10, 4.0, True, "Localizado en Panamá a 24km al este de Tonosí", q.url)
     assert "• Epicentro ajustado 10 km; sigue a 24 km al este de Tonosí, Panamá" in revision_note(pre, far)
     assert cluster_note(r, q).startswith("↪️ <i>El IGC lo publica como un sismo distinto del de las 12:09 a. m. (M5.0 preliminar, a 6 km)")
+
+
+# ---------------------------------------------------------------- IGC down: EMSC as backup
+
+def test_place_for_a_quake_from_emsc():
+    from app.igc import describe_place, from_emsc, quake_from_emsc
+    from app.feeds import origin_from_emsc_feature
+    assert describe_place(7.2, -80.44) == "Localizado en Panamá a 23km al sur de Tonosí"
+    assert describe_place(7.404, -80.442) == "Localizado en Panamá cerca de Tonosí"
+    o = origin_from_emsc_feature(_emsc_feature(datetime(2026, 10, 14, 19, 31, 28, tzinfo=timezone.utc), 7.2, -80.44, 3.6, "IGC", "X1"))
+    q = quake_from_emsc(o)
+    assert from_emsc(q) and not q.reviewed and q.mag == 3.6 and q.url.endswith("unid=X1")
+    assert "23 km al sur de Tonosí, Panamá" in message(q) and "tomados de EMSC" in message(q)
+
+
+def test_maintenance_page_text():
+    page = ("<html><head><title>IGC</title><style>b{color:red}</style></head><body><center>"
+            "<b>Estamos en mantenimiento hasta las 4:30pm.</b></center></body></html>")
+    assert monitor_main.page_text(page) == "Estamos en mantenimiento hasta las 4:30pm."
+
+
+def _emsc_feature(t, lat, lon, mag, auth, unid):
+    return {"type": "Feature", "id": unid, "geometry": {"type": "Point", "coordinates": [lon, lat, -5.0]},
+            "properties": {"time": t.strftime("%Y-%m-%dT%H:%M:%S.0Z"), "lat": lat, "lon": lon, "depth": 5.0, "mag": mag,
+                           "magtype": "ml", "auth": auth, "unid": unid, "flynn_region": "SOUTH OF PANAMA", "evtype": "ke"}}
+
+
+@pytest.mark.asyncio
+async def test_igc_down_emsc_backup_then_igc_back(tmp_path):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    old = (now - timedelta(hours=1), 7.6, -80.7, 4.0, True)
+    igc_state = {"etag": '"v1"', "body": _page([old]), "status": 200}
+    emsc_state = {"features": []}
+
+    async def igc(request):
+        if igc_state["status"] == 200 and request.headers.get("If-None-Match") == igc_state["etag"]:
+            return web.Response(status=304)
+        return web.Response(text=igc_state["body"], status=igc_state["status"], content_type="text/html",
+                            headers={"ETag": igc_state["etag"]})
+
+    async def emsc(request):
+        return web.json_response({"type": "FeatureCollection", "features": emsc_state["features"]})
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/emsc", emsc)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    monitor_main.CFG["igc_url"] = f"http://127.0.0.1:{port}/"
+    monitor_main.CFG["emsc_url"] = f"http://127.0.0.1:{port}/emsc"
+
+    app = monitor_main.make_app()
+    tg = FakeTelegram()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    try:
+        assert (await monitor_main.tick(app))["first_run"]
+        # IGC goes into maintenance; EMSC has IGC's M3.6, an automatic UNA M4.5 (ignored)
+        # and IGC's old M4.0 (already known: not repeated)
+        igc_state.update(etag='"m"', body="<html><body><b>Estamos en mantenimiento hasta las 4:30pm.</b></body></html>")
+        t = now - timedelta(minutes=2)
+        emsc_state["features"] = [_emsc_feature(t, 7.45, -81.45, 3.6, "IGC", "A1"),
+                                  _emsc_feature(now - timedelta(minutes=4), 7.0, -80.0, 4.5, "UNA", "B2"),
+                                  _emsc_feature(old[0] + timedelta(seconds=2), 7.61, -80.71, 4.1, "IGC", "C3")]
+        down = await monitor_main.tick(app)
+        assert down["igc"] == "down" and down["sent"] == 1 and len(tg.sent) == 1
+        text, silent = tg.sent[0]
+        assert "M3.6" in text and "tomados de EMSC" in text and silent is True
+        assert tg.buttons[0][0][0] == {"text": "🗺️ Ficha en EMSC", "url": "https://www.seismicportal.eu/eventdetails.html?unid=A1"}
+        assert "notice_sent" not in down  # a short blip doesn't reach the channel
+        feed_now = __import__("json").loads((tmp_path / "igc" / "recent.json").read_text())
+        assert [e["mag"] for e in feed_now["events"]] == [3.6, 4.0]  # the web page gets it too
+        # still down after 10 minutes: one silent notice quoting the page, only once
+        app["state"].down_since = (now - timedelta(minutes=11)).isoformat()
+        assert (await monitor_main.tick(app))["notice_sent"]
+        assert tg.sent[1] == ("⚠️ <b>La lista de sismos del IGC no está disponible</b>\n\n"
+                              "Motivo: la página dice: «Estamos en mantenimiento hasta las 4:30pm.»\n\n"
+                              "Mientras tanto, los avisos salen con los datos del IGC que publica EMSC, unos minutos más tarde.", True)
+        assert "notice_sent" not in await monitor_main.tick(app) and len(tg.sent) == 2
+        # IGC is back, with the M3.6 revised to M3.7: the message is edited (not repeated),
+        # a reply says what changed, and a reply to the notice says IGC is back
+        igc_state.update(etag='"v2"', body=_page([(t + timedelta(seconds=3), 7.46, -81.44, 3.7, True), old]))
+        back = await monitor_main.tick(app)
+        assert back["new"] == 0 and back["sent"] == 0 and back["edited"] == 1
+        assert tg.edits[0][0] == 1 and "M3.7" in tg.edits[0][1] and "tomados de EMSC" not in tg.edits[0][1]
+        assert tg.edits[0][1].endswith("antes: M3.6 preliminar (vía EMSC), 29 km al suroeste de Santa Catalina, Panamá</i>")
+        note = tg.sent[2][0]
+        assert note.startswith("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M3.6 → <b>M3.7</b>") and tg.replies[2] == 1
+        assert "Lugar" not in note  # our wording vs IGC's is not a change
+        assert tg.sent[3][0].startswith("✅ <b>La lista del IGC volvió</b> después de 11 min") and tg.replies[3] == 2
+        assert app["state"].down_since is None and app["state"].down_notice_id is None
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_igc_error_status_and_no_network(tmp_path):
+    async def igc(request):
+        return web.Response(text="<html><body><h1>502 Bad Gateway</h1><hr>nginx</body></html>", status=502, content_type="text/html")
+
+    async def emsc(request):
+        return web.Response(status=204)
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/emsc", emsc)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    monitor_main.CFG["igc_url"] = f"http://127.0.0.1:{port}/"
+    monitor_main.CFG["emsc_url"] = f"http://127.0.0.1:{port}/emsc"
+    app = monitor_main.make_app()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), FakeTelegram()
+    try:
+        r = await monitor_main.tick(app)
+        assert r["igc"] == "down" and r["reason"] == "la página dice: «502 Bad Gateway nginx»" and r["backup"] == 0
+        monitor_main.CFG["igc_url"] = "http://127.0.0.1:1/"  # nothing listening
+        r = await monitor_main.tick(app)
+        assert r["reason"] == "la página no responde"
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
