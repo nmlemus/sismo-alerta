@@ -76,7 +76,7 @@ export const TILES = { cartoKey: '' };
 
 // Feed written by the IGC monitor (infra/deploy-monitor.sh prints it), e.g.
 // 'https://storage.googleapis.com/<bucket>/igc/'. Empty: the page uses EMSC only.
-export const IGC_FEED = { base: '', pollSeconds: 60 };
+export const IGC_FEED = { base: 'https://storage.googleapis.com/sismo-alerta-235ca-sismo-feed/igc/', pollSeconds: 60 };
 
 // Visit statistics (countries, cities, where people come from). Paste the Google
 // Analytics 4 measurement ID ("G-…") of the Firebase project here; empty = off.

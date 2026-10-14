@@ -82,6 +82,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
     return emscRoute(route);
   });
+  await page.route(/sismo-alerta-235ca-sismo-feed/, (route) => route.fulfill({ contentType: 'application/json', body: '{"events":[]}' }));
   const tileZooms = [];
   await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com/, (route) => {
     const z = /\/(\d+)\/\d+\/\d+(@2x)?\.png/.exec(route.request().url());
@@ -315,6 +316,7 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
     return emscRoute(route);
   });
+  await page.route(/sismo-alerta-235ca-sismo-feed/, (route) => route.fulfill({ contentType: 'application/json', body: '{"events":[]}' }));
   await page.route(/tile\.openstreetmap\.org|earthquake\.usgs\.gov/, (route) => route.abort());
   await page.routeWebSocket(/seismicportal\.eu/, () => {});
   await page.goto(base);
@@ -339,7 +341,7 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route(/js\/config\.js$/, async (route) => {
     const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8')
-      .replace("IGC_FEED = { base: '', pollSeconds: 60 }", "IGC_FEED = { base: 'https://storage.googleapis.com/test-bucket/igc/', pollSeconds: 2 }");
+      .replace(/IGC_FEED = \{[^}]*\}/, "IGC_FEED = { base: 'https://storage.googleapis.com/test-bucket/igc/', pollSeconds: 2 }");
     await route.fulfill({ contentType: 'text/javascript', body, headers: { 'content-security-policy': CSP } });
   });
   const dupOf = fixture.features.find((f) => f.properties.auth === 'IGC' && f.properties.time > '2026-10-10').properties;
