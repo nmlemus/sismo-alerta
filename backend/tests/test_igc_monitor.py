@@ -54,12 +54,20 @@ def test_who_gets_announced():
 
 
 def test_message_text():
+    from app.monitor import buttons
     q = parse_list(PAGE)[2]
-    text = message(q, "https://example.org")
-    assert text.startswith("🟠 <b>Sismo M5.0</b> · Panamá a 27 km al noroeste de Tonosí")
-    assert "12:09 a. m. (hora de Panamá) · 5 km de profundidad · preliminar" in text
-    assert "En Ciudad de Panamá: intensidad estimada" in text
-    assert "&amp;lt=7.52893" in text  # link escaped for Telegram's HTML
+    lines = message(q).split("\n")
+    assert lines[0] == "🟠 <b>SISMO M5.0</b>  ·  🕒 preliminar"
+    assert lines[1] == "" and lines[5] == ""  # blank lines between the blocks
+    assert lines[2] == "📍 27 km al noroeste de Tonosí, Panamá"
+    assert lines[3] == "🕐 mié 14 oct · 12:09 a. m."
+    assert lines[4] == "⬇️ 5 km de profundidad"
+    assert lines[6].startswith("🏙️ En Ciudad de Panamá: intensidad <b>")
+    border = q.__class__(q.time, 9.03, -82.27, 10, 4.2, True, "Localizado en Región Fronteriza Panamá-Costa Rica a 19km al noroeste de Chiriquí Grande", q.url)
+    assert "📍 19 km al noroeste de Chiriquí Grande, Región Fronteriza Panamá-Costa Rica" in message(border)
+    assert "✅ revisado" in message(border)
+    b = buttons(q, "https://example.org")
+    assert b[0][0]["text"] == "🗺️ Ficha del IGC" and b[0][0]["url"] == q.url and b[0][1]["url"] == "https://example.org"
 
 
 def test_feed_for_the_web_page():
@@ -84,12 +92,13 @@ class FakeTelegram:
     def __init__(self):
         self.sent, self.edits = [], []
 
-    async def send(self, text, silent=False, reply_to=None):
+    async def send(self, text, silent=False, reply_to=None, buttons=None):
+        self.buttons = getattr(self, 'buttons', []) + [buttons]
         self.sent.append((text, silent))
         self.replies = getattr(self, 'replies', []) + [reply_to]
         return len(self.sent)
 
-    async def edit(self, message_id, text):
+    async def edit(self, message_id, text, buttons=None):
         self.edits.append((message_id, text))
 
     async def delete(self, message_id):
@@ -130,7 +139,7 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
             (now - timedelta(minutes=5), 7.5, -80.6, 3.0, False),
             (now - timedelta(hours=2), 7.6, -80.7, 4.0, True)])
         third = await monitor_main.tick(app)
-        assert third["sent"] == 1 and "M4.6" in tg.sent[0][0] and tg.sent[0][1] is False
+        assert third["sent"] == 1 and "M4.6" in tg.sent[0][0] and tg.sent[0][1] is False and tg.buttons[0][0][1]["text"] == "📈 Réplicas en vivo"
         # IGC revises it to M4.8: the same message is edited
         pages["etag"], pages["body"] = '"v3"', _page([
             (now - timedelta(minutes=2), 7.7, -81.3, 4.8, True),
@@ -139,7 +148,7 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
         fourth = await monitor_main.tick(app)
         assert fourth["edited"] == 1 and tg.edits[0][0] == 1 and "M4.8" in tg.edits[0][1] and "revisado" in tg.edits[0][1]
         # ...and a silent reply to the original says what changed
-        assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>: M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
+        assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>\n\n• M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
         # a new quake 3 minutes later and 10 km away replies to that message
         pages["etag"], pages["body"] = '"v4"', _page([
             (now + timedelta(minutes=1), 7.75, -81.25, 4.1, False),
@@ -171,9 +180,9 @@ async def test_test_message_never_touches_state_or_feed(tmp_path):
     app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
     steps = await monitor_main.run_test(app, keep_s=0.01, edit_after_s=0.01)
     assert steps["passes_filters"] and steps["sent_message_id"] == 1 and steps["deleted"]
-    assert tg.sent[0][0].startswith("🧪 <b>PRUEBA — no es un sismo real</b>") and "M4.5" in tg.sent[0][0]
+    assert tg.sent[0][0].startswith("🧪 <b>PRUEBA — no es un sismo real</b>\n\n🟡 <b>SISMO M4.5</b>")
     assert "M4.6" in tg.edits[0][1] and "revisado" in tg.edits[0][1] and tg.deleted == 1  # the original, deleted last
-    assert tg.sent[1][0].startswith("🧪 ✏️ <b>Revisado por el IGC</b>: M4.5 → <b>M4.6</b>") and tg.replies[1] == 1
+    assert tg.sent[1][0].startswith("🧪 ✏️ <b>Revisado por el IGC</b>\n\n• M4.5 → <b>M4.6</b>") and tg.replies[1] == 1
     assert not (tmp_path / "igc").exists()  # nothing written: no state, no feed
     for fn in app.on_cleanup:
         await fn(app)
@@ -184,6 +193,6 @@ def test_revision_note_and_cluster_note():
     q = parse_list(PAGE)[2]  # M5.0 preliminar
     r = q.__class__(q.time + timedelta(seconds=4), q.lat + 0.05, q.lon, 8.0, 4.8, True, "Localizado en Panamá a 22km al noroeste de Tonosí", q.url)
     note = revision_note(q, r)
-    assert note.startswith("✏️ <b>Revisado por el IGC</b>: M5.0 → <b>M4.8</b>; ahora Panamá a 22 km al noroeste de Tonosí (se movió 6 km)")
-    assert revision_note(r, r) == "✏️ <b>Actualizado por el IGC</b>: confirmado sin cambios"
-    assert cluster_note(r, q).startswith("↪️ El IGC lo publica como un sismo distinto del de las 12:09 a. m. (M5.0 preliminar, a 6 km)")
+    assert note == "✏️ <b>Revisado por el IGC</b>\n\n• M5.0 → <b>M4.8</b>\n• ahora 22 km al noroeste de Tonosí, Panamá (se movió 6 km)\n• hora 12:09 a. m."
+    assert revision_note(r, r) == "✏️ <b>Actualizado por el IGC</b>\n\nConfirmado sin cambios"
+    assert cluster_note(r, q).startswith("↪️ <i>El IGC lo publica como un sismo distinto del de las 12:09 a. m. (M5.0 preliminar, a 6 km)")

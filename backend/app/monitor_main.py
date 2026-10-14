@@ -34,7 +34,7 @@ import aiohttp
 from aiohttp import web
 
 from .igc import IGC_URL, IgcQuake, parse_list
-from .monitor import Known, cluster_note, feed, merge, message, nearby_earlier, revision_note, signature, to_notify
+from .monitor import Known, buttons, cluster_note, feed, merge, message, nearby_earlier, revision_note, signature, to_notify
 from .telegram import LogOnly, Telegram
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -156,11 +156,12 @@ async def tick(app: web.Application) -> dict:
             due = to_notify(res.new + [k for k in res.changed if k.message_id is None],
                             min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
             for k in due:
-                text = message(k.quake, CFG["dashboard"])
+                text = message(k.quake)
                 near = nearby_earlier(k.quake, list(res.known.values()))
                 if near:
-                    text += "\n" + cluster_note(k.quake, near.quake)
-                k.message_id = await tg.send(text, silent=k.quake.mag < CFG["loud_mag"], reply_to=near.message_id if near else None)
+                    text += "\n\n" + cluster_note(k.quake, near.quake)
+                k.message_id = await tg.send(text, silent=k.quake.mag < CFG["loud_mag"], reply_to=near.message_id if near else None,
+                                             buttons=buttons(k.quake, CFG["dashboard"]))
                 k.sent_signature = signature(k.quake)
                 sent += 1
             for k in res.changed:
@@ -168,7 +169,7 @@ async def tick(app: web.Application) -> dict:
                     before = state.known[k.id].quake
                     # The original message shows the current data, and a silent reply to it
                     # says what changed, so the chat keeps the order of what happened.
-                    await tg.edit(k.message_id, message(k.quake, CFG["dashboard"]) + "\n✏️ <i>Actualizado por el IGC</i>")
+                    await tg.edit(k.message_id, message(k.quake) + "\n\n✏️ <i>Actualizado por el IGC</i>", buttons(k.quake, CFG["dashboard"]))
                     await tg.send(revision_note(before, k.quake), silent=True, reply_to=k.message_id)
                     k.sent_signature = signature(k.quake)
                     edited += 1
@@ -192,7 +193,7 @@ async def handle_tick(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
-TEST_BANNER = "🧪 <b>PRUEBA — no es un sismo real</b>\n"
+TEST_BANNER = "🧪 <b>PRUEBA — no es un sismo real</b>\n\n"
 
 
 async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float = 5) -> dict:
@@ -206,12 +207,12 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
     state: State = app.get("state") or State()
     due = to_notify(merge(dict(state.known), [q]).new, min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
     steps = {"passes_filters": bool(due), "telegram": isinstance(tg, Telegram)}
-    mid = await tg.send(TEST_BANNER + message(q, CFG["dashboard"]), silent=q.mag < CFG["loud_mag"])
+    mid = await tg.send(TEST_BANNER + message(q), silent=q.mag < CFG["loud_mag"], buttons=buttons(q, CFG["dashboard"]))
     steps["sent_message_id"] = mid
     if mid is not None and edit_after_s:
         await asyncio.sleep(edit_after_s)
         revised = IgcQuake(q.time, q.lat, q.lon, 8.0, round(q.mag + 0.1, 1), True, q.place, q.url)
-        await tg.edit(mid, TEST_BANNER + message(revised, CFG["dashboard"]) + "\n✏️ <i>Actualizado por el IGC</i>")
+        await tg.edit(mid, TEST_BANNER + message(revised) + "\n\n✏️ <i>Actualizado por el IGC</i>", buttons(revised, CFG["dashboard"]))
         steps["reply_message_id"] = await tg.send("🧪 " + revision_note(q, revised), silent=True, reply_to=mid)
         steps["edited"] = True
     if mid is not None and keep_s:

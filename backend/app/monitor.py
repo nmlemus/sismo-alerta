@@ -83,29 +83,50 @@ def _clock(t: datetime) -> str:
 
 
 def _place(q: IgcQuake) -> str:
+    """'Localizado en Panamá a 27km al noroeste de Tonosí' -> '27 km al noroeste de Tonosí, Panamá'."""
     p = q.place
     if p.startswith("Localizado en "):
         p = p[len("Localizado en "):]
     p = re.sub(r"(\d)km\b", r"\1 km", p)
+    m = re.match(r"^(.+?) a (\d+ km .+)$", p)
+    if m:
+        p = f"{m.group(2)}, {m.group(1)}"
     return p[:1].upper() + p[1:]
+
+
+_DAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+_MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def _day(t: datetime) -> str:
+    local = t.astimezone(PANAMA_TZ)
+    return f"{_DAYS[local.weekday()]} {local.day} {_MONTHS[local.month - 1]}"
 
 
 def badge(mag: float) -> str:
     return "🔴" if mag >= 6 else "🟠" if mag >= 5 else "🟡" if mag >= 4 else "⚪"
 
 
-def message(q: IgcQuake, dashboard_url: str) -> str:
-    """Telegram HTML message for a quake."""
+def message(q: IgcQuake, dashboard_url: str = "") -> str:
+    """Telegram HTML message for a quake: headline, where/when/depth, felt in the capital.
+    Links go in buttons() under the message, so the text stays clean."""
     lat, lon, adj = PANAMA_CITY
     mmi = estimate_mmi(q.mag, q.depth_km, q.lat, q.lon, lat, lon, adj)
-    state = "revisado" if q.reviewed else "preliminar"
-    lines = [
-        f"{badge(q.mag)} <b>Sismo M{q.mag:.1f}</b> · {_esc(_place(q))}",
-        f"{_clock(q.time)} (hora de Panamá) · {q.depth_km:.0f} km de profundidad · {state}",
-        f"En Ciudad de Panamá: intensidad estimada {describe(mmi)}",
-        f'<a href="{_esc(q.url)}">Ficha del IGC</a> · <a href="{_esc(dashboard_url)}">Réplicas en vivo</a>',
-    ]
-    return "\n".join(lines)
+    state = "✅ revisado" if q.reviewed else "🕒 preliminar"
+    return "\n".join([
+        f"{badge(q.mag)} <b>SISMO M{q.mag:.1f}</b>  ·  {state}",
+        "",
+        f"📍 {_esc(_place(q))}",
+        f"🕐 {_day(q.time)} · {_clock(q.time)}",
+        f"⬇️ {q.depth_km:.0f} km de profundidad",
+        "",
+        f"🏙️ En Ciudad de Panamá: intensidad <b>{describe(mmi)}</b>, estimada",
+    ])
+
+
+def buttons(q: IgcQuake, dashboard_url: str) -> list[list[dict]]:
+    """Inline buttons under the message (Telegram inline keyboard)."""
+    return [[{"text": "🗺️ Ficha del IGC", "url": q.url}, {"text": "📈 Réplicas en vivo", "url": dashboard_url}]]
 
 
 def revision_note(before: IgcQuake, after: IgcQuake) -> str:
@@ -119,7 +140,7 @@ def revision_note(before: IgcQuake, after: IgcQuake) -> str:
     if abs((after.time - before.time).total_seconds()) >= 2:
         parts.append(f"hora {_clock(after.time)}")
     head = "✏️ <b>Revisado por el IGC</b>" if after.reviewed and not before.reviewed else "✏️ <b>Actualizado por el IGC</b>"
-    return head + (": " + "; ".join(parts) if parts else ": confirmado sin cambios")
+    return head + ("\n\n" + "\n".join(f"• {p}" for p in parts) if parts else "\n\nConfirmado sin cambios")
 
 
 def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":
@@ -139,8 +160,8 @@ def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: f
 def cluster_note(q: IgcQuake, earlier: IgcQuake) -> str:
     d = epicentral_km(q.lat, q.lon, earlier.lat, earlier.lon)
     state = "revisado" if earlier.reviewed else "preliminar"
-    return (f"↪️ El IGC lo publica como un sismo distinto del de las {_clock(earlier.time)} "
-            f"(M{earlier.mag:.1f} {state}, a {d:.0f} km)")
+    return (f"↪️ <i>El IGC lo publica como un sismo distinto del de las {_clock(earlier.time)} "
+            f"(M{earlier.mag:.1f} {state}, a {d:.0f} km)</i>")
 
 
 def _esc(s: str) -> str:

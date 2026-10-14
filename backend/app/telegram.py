@@ -24,22 +24,28 @@ class Telegram:
                     raise RuntimeError(f"Telegram {method}: {body.get('description')}")
             return body.get("result") or {}
 
-    async def send(self, text: str, silent: bool = False, reply_to: int | None = None) -> int | None:
+    async def send(self, text: str, silent: bool = False, reply_to: int | None = None,
+                   buttons: list[list[dict]] | None = None) -> int | None:
         payload = {
             "chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
             "disable_web_page_preview": True, "disable_notification": silent,
         }
+        if buttons:
+            payload["reply_markup"] = {"inline_keyboard": buttons}
         if reply_to:
             # Quotes the earlier message, so the chat shows which quake this is about.
             payload["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
         res = await self._call("sendMessage", payload)
         return res.get("message_id")
 
-    async def edit(self, message_id: int, text: str) -> None:
-        await self._call("editMessageText", {
+    async def edit(self, message_id: int, text: str, buttons: list[list[dict]] | None = None) -> None:
+        payload = {
             "chat_id": self.chat_id, "message_id": message_id, "text": text,
             "parse_mode": "HTML", "disable_web_page_preview": True,
-        })
+        }
+        if buttons:  # an edit without them would drop the buttons
+            payload["reply_markup"] = {"inline_keyboard": buttons}
+        await self._call("editMessageText", payload)
 
     async def delete(self, message_id: int) -> None:
         await self._call("deleteMessage", {"chat_id": self.chat_id, "message_id": message_id})
@@ -48,12 +54,12 @@ class Telegram:
 class LogOnly:
     """Stand-in when no bot is configured: logs what it would have sent."""
 
-    async def send(self, text: str, silent: bool = False, reply_to: int | None = None) -> int | None:
+    async def send(self, text: str, silent: bool = False, reply_to: int | None = None, buttons=None) -> int | None:
         log.info("[telegram off] %s%s%s", "(silent) " if silent else "", f"(reply to {reply_to}) " if reply_to else "",
                  text.replace("\n", " | "))
         return None
 
-    async def edit(self, message_id: int, text: str) -> None:
+    async def edit(self, message_id: int, text: str, buttons=None) -> None:
         log.info("[telegram off] edit %s: %s", message_id, text.replace("\n", " | "))
 
     async def delete(self, message_id: int) -> None:
