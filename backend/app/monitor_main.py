@@ -34,7 +34,7 @@ import aiohttp
 from aiohttp import web
 
 from .igc import IGC_URL, IgcQuake, parse_list
-from .monitor import Known, buttons, cluster_note, feed, merge, message, nearby_earlier, revision_note, signature, to_notify
+from .monitor import Known, buttons, cluster_note, edited_footer, feed, merge, message, nearby_earlier, revision_note, signature, to_notify
 from .telegram import LogOnly, Telegram
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -169,7 +169,7 @@ async def tick(app: web.Application) -> dict:
                     before = state.known[k.id].quake
                     # The original message shows the current data, and a silent reply to it
                     # says what changed, so the chat keeps the order of what happened.
-                    await tg.edit(k.message_id, message(k.quake) + "\n\n✏️ <i>Actualizado por el IGC</i>", buttons(k.quake, CFG["dashboard"]))
+                    await tg.edit(k.message_id, message(k.quake) + "\n\n" + edited_footer(before), buttons(k.quake, CFG["dashboard"]))
                     note = revision_note(before, k.quake)
                     if note:
                         await tg.send(note, silent=True, reply_to=k.message_id)
@@ -214,7 +214,7 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
     if mid is not None and edit_after_s:
         await asyncio.sleep(edit_after_s)
         revised = IgcQuake(q.time, q.lat, q.lon, 8.0, round(q.mag + 0.1, 1), True, q.place, q.url)
-        await tg.edit(mid, TEST_BANNER + message(revised) + "\n\n✏️ <i>Actualizado por el IGC</i>", buttons(revised, CFG["dashboard"]))
+        await tg.edit(mid, TEST_BANNER + message(revised) + "\n\n" + edited_footer(q), buttons(revised, CFG["dashboard"]))
         steps["reply_message_id"] = await tg.send("🧪 " + revision_note(q, revised), silent=True, reply_to=mid)
         steps["edited"] = True
     if mid is not None and keep_s:

@@ -162,6 +162,13 @@ def revision_note(before: IgcQuake, after: IgcQuake) -> str | None:
     return head + "\n\n" + "\n".join(f"• {p}" for p in parts)
 
 
+def edited_footer(before: IgcQuake) -> str:
+    """Last line of an edited message: what it said before, so it reads on its own
+    (the reply under it has the full before → after)."""
+    state = "revisado" if before.reviewed else "preliminar"
+    return f"<i>✏️ Editado · antes: M{before.mag:.1f} {state}, {_esc(_place(before))}</i>"
+
+
 def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":
     """An already announced quake shortly before and close to this one (same cluster,
     or a revision IGC listed as a new row): the new message replies to it."""

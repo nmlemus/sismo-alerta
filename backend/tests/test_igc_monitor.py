@@ -147,6 +147,7 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
             (now - timedelta(hours=2), 7.6, -80.7, 4.0, True)])
         fourth = await monitor_main.tick(app)
         assert fourth["edited"] == 1 and tg.edits[0][0] == 1 and "M4.8" in tg.edits[0][1] and "revisado" in tg.edits[0][1]
+        assert tg.edits[0][1].endswith("<i>✏️ Editado · antes: M4.6 preliminar, 20 km al sur de Soná, Panamá</i>")
         # ...and a silent reply to the original says what changed
         assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
         # a new quake 3 minutes later and 10 km away replies to that message
