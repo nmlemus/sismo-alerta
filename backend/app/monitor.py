@@ -129,18 +129,37 @@ def buttons(q: IgcQuake, dashboard_url: str) -> list[list[dict]]:
     return [[{"text": "🗺️ Ficha del IGC", "url": q.url}, {"text": "📈 Réplicas en vivo", "url": dashboard_url}]]
 
 
-def revision_note(before: IgcQuake, after: IgcQuake) -> str:
-    """Short reply to the original message: what IGC changed."""
+MOVE_KM = 5  # a few km is within the usual location error: not worth a line
+
+
+def _clock_s(t: datetime) -> str:
+    local = t.astimezone(PANAMA_TZ)
+    h = local.hour % 12 or 12
+    return f"{h}:{local:%M:%S} {'a. m.' if local.hour < 12 else 'p. m.'}"
+
+
+def revision_note(before: IgcQuake, after: IgcQuake) -> str | None:
+    """Short reply to the original message: what IGC changed, in before → after form,
+    and only what a reader would notice."""
     parts = []
     if f"{before.mag:.1f}" != f"{after.mag:.1f}":
-        parts.append(f"M{before.mag:.1f} → <b>M{after.mag:.1f}</b>")
+        parts.append(f"Magnitud: M{before.mag:.1f} → <b>M{after.mag:.1f}</b>")
+    else:
+        parts.append(f"Magnitud: M{after.mag:.1f}, sin cambios")
     moved = epicentral_km(before.lat, before.lon, after.lat, after.lon)
-    if moved >= 3 or before.place != after.place:
-        parts.append(f"ahora {_esc(_place(after))}" + (f" (se movió {moved:.0f} km)" if moved >= 3 else ""))
+    if _place(before) != _place(after):
+        parts.append(f"Lugar: {_esc(_place(before))} → <b>{_esc(_place(after))}</b>")
+    elif moved >= MOVE_KM:
+        parts.append(f"Epicentro ajustado {moved:.0f} km; sigue a {_esc(_place(after))}")
     if abs((after.time - before.time).total_seconds()) >= 2:
-        parts.append(f"hora {_clock(after.time)}")
-    head = "✏️ <b>Revisado por el IGC</b>" if after.reviewed and not before.reviewed else "✏️ <b>Actualizado por el IGC</b>"
-    return head + ("\n\n" + "\n".join(f"• {p}" for p in parts) if parts else "\n\nConfirmado sin cambios")
+        parts.append(f"Hora: {_clock_s(before.time)} → <b>{_clock_s(after.time)}</b>")
+    if abs(after.depth_km - before.depth_km) >= 5:
+        parts.append(f"Profundidad: {before.depth_km:.0f} → <b>{after.depth_km:.0f} km</b>")
+    newly_reviewed = after.reviewed and not before.reviewed
+    if len(parts) == 1 and parts[0].endswith("sin cambios") and not newly_reviewed:
+        return None  # only a small nudge of the coordinates: nothing a reader would notice
+    head = "✏️ <b>Revisado por el IGC</b>" if newly_reviewed else "✏️ <b>Actualizado por el IGC</b>"
+    return head + "\n\n" + "\n".join(f"• {p}" for p in parts)
 
 
 def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":

@@ -148,7 +148,7 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
         fourth = await monitor_main.tick(app)
         assert fourth["edited"] == 1 and tg.edits[0][0] == 1 and "M4.8" in tg.edits[0][1] and "revisado" in tg.edits[0][1]
         # ...and a silent reply to the original says what changed
-        assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>\n\n• M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
+        assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
         # a new quake 3 minutes later and 10 km away replies to that message
         pages["etag"], pages["body"] = '"v4"', _page([
             (now + timedelta(minutes=1), 7.75, -81.25, 4.1, False),
@@ -182,7 +182,7 @@ async def test_test_message_never_touches_state_or_feed(tmp_path):
     assert steps["passes_filters"] and steps["sent_message_id"] == 1 and steps["deleted"]
     assert tg.sent[0][0].startswith("🧪 <b>PRUEBA — no es un sismo real</b>\n\n🟡 <b>SISMO M4.5</b>")
     assert "M4.6" in tg.edits[0][1] and "revisado" in tg.edits[0][1] and tg.deleted == 1  # the original, deleted last
-    assert tg.sent[1][0].startswith("🧪 ✏️ <b>Revisado por el IGC</b>\n\n• M4.5 → <b>M4.6</b>") and tg.replies[1] == 1
+    assert tg.sent[1][0].startswith("🧪 ✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M4.5 → <b>M4.6</b>") and tg.replies[1] == 1
     assert not (tmp_path / "igc").exists()  # nothing written: no state, no feed
     for fn in app.on_cleanup:
         await fn(app)
@@ -193,6 +193,14 @@ def test_revision_note_and_cluster_note():
     q = parse_list(PAGE)[2]  # M5.0 preliminar
     r = q.__class__(q.time + timedelta(seconds=4), q.lat + 0.05, q.lon, 8.0, 4.8, True, "Localizado en Panamá a 22km al noroeste de Tonosí", q.url)
     note = revision_note(q, r)
-    assert note == "✏️ <b>Revisado por el IGC</b>\n\n• M5.0 → <b>M4.8</b>\n• ahora 22 km al noroeste de Tonosí, Panamá (se movió 6 km)\n• hora 12:09 a. m."
-    assert revision_note(r, r) == "✏️ <b>Actualizado por el IGC</b>\n\nConfirmado sin cambios"
+    assert note == ("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M5.0 → <b>M4.8</b>"
+                    "\n• Lugar: 27 km al noroeste de Tonosí, Panamá → <b>22 km al noroeste de Tonosí, Panamá</b>"
+                    "\n• Hora: 12:09:35 a. m. → <b>12:09:39 a. m.</b>")
+    assert revision_note(r, r) is None  # nothing a reader would notice: no reply
+    # the real case of Oct 14, 10:35 a.m.: IGC moved it 4 km but it is still "24 km al este de Tonosí"
+    pre = q.__class__(q.time, 7.4900, -80.2290, 10, 4.0, False, "Localizado en Panamá a 24km al este de Tonosí", q.url)
+    rev = q.__class__(q.time, 7.4550, -80.2207, 10, 4.0, True, "Localizado en Panamá a 24km al este de Tonosí", q.url)
+    assert revision_note(pre, rev) == "✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M4.0, sin cambios"
+    far = q.__class__(q.time, 7.40, -80.22, 10, 4.0, True, "Localizado en Panamá a 24km al este de Tonosí", q.url)
+    assert "• Epicentro ajustado 10 km; sigue a 24 km al este de Tonosí, Panamá" in revision_note(pre, far)
     assert cluster_note(r, q).startswith("↪️ <i>El IGC lo publica como un sismo distinto del de las 12:09 a. m. (M5.0 preliminar, a 6 km)")

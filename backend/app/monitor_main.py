@@ -170,7 +170,9 @@ async def tick(app: web.Application) -> dict:
                     # The original message shows the current data, and a silent reply to it
                     # says what changed, so the chat keeps the order of what happened.
                     await tg.edit(k.message_id, message(k.quake) + "\n\n✏️ <i>Actualizado por el IGC</i>", buttons(k.quake, CFG["dashboard"]))
-                    await tg.send(revision_note(before, k.quake), silent=True, reply_to=k.message_id)
+                    note = revision_note(before, k.quake)
+                    if note:
+                        await tg.send(note, silent=True, reply_to=k.message_id)
                     k.sent_signature = signature(k.quake)
                     edited += 1
         state.known, state.etag = res.known, etag
