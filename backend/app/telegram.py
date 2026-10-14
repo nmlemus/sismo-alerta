@@ -37,6 +37,9 @@ class Telegram:
             "parse_mode": "HTML", "disable_web_page_preview": True,
         })
 
+    async def delete(self, message_id: int) -> None:
+        await self._call("deleteMessage", {"chat_id": self.chat_id, "message_id": message_id})
+
 
 class LogOnly:
     """Stand-in when no bot is configured: logs what it would have sent."""
@@ -47,3 +50,6 @@ class LogOnly:
 
     async def edit(self, message_id: int, text: str) -> None:
         log.info("[telegram off] edit %s: %s", message_id, text.replace("\n", " | "))
+
+    async def delete(self, message_id: int) -> None:
+        log.info("[telegram off] delete %s", message_id)

@@ -68,7 +68,7 @@ $G run deploy "$SERVICE" --region "$REGION" --source "$ROOT/backend" \
   --command python --args="-m,app.monitor_main" \
   --service-account "$SA" --no-allow-unauthenticated \
   --min-instances 0 --max-instances 1 --concurrency 1 --cpu 1 --memory 512Mi --timeout 60 \
-  --set-env-vars "BUCKET=$BUCKET,DASHBOARD_URL=$DASHBOARD_URL,NOTIFY_MIN_MAG=$NOTIFY_MIN_MAG,LOUD_MIN_MAG=$LOUD_MIN_MAG,NOTIFY_MAX_KM=$NOTIFY_MAX_KM,TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}" \
+  --update-env-vars "BUCKET=$BUCKET,DASHBOARD_URL=$DASHBOARD_URL,NOTIFY_MIN_MAG=$NOTIFY_MIN_MAG,LOUD_MIN_MAG=$LOUD_MIN_MAG,NOTIFY_MAX_KM=$NOTIFY_MAX_KM${TELEGRAM_CHAT_ID:+,TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID}" \
   "${SECRET_FLAGS[@]}"
 URL=$($G run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
 $G run services add-iam-policy-binding "$SERVICE" --region "$REGION" --member "serviceAccount:$SCHED_SA" --role roles/run.invoker >/dev/null
@@ -88,3 +88,5 @@ echo "==> Done."
 echo "    Feed for the web page (paste into web/js/config.js, IGC_FEED.base):"
 echo "      https://storage.googleapis.com/$BUCKET/igc/"
 echo "    Logs: gcloud run services logs read $SERVICE --project $PROJECT_ID --region $REGION --limit 30"
+echo "    Telegram test (labelled PRUEBA, deleted after 30 s):"
+echo "      curl -X POST -H \"Authorization: Bearer \$(gcloud auth print-identity-token)\" $URL/test"

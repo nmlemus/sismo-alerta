@@ -136,6 +136,8 @@ Se apaga entre revisiones y queda dentro de los niveles gratuitos de Cloud Run, 
 3. **Despliegue:** corre `PROJECT_ID=tu-proyecto TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@sismos_panama_live ./infra/deploy-monitor.sh`.
 4. **Conecta la página:** pega la URL del feed que imprime el script en `IGC_FEED.base` de `web/js/config.js` y publica la página.
 
+Para probar Telegram sin un sismo real, `POST /test` manda un mensaje marcado "🧪 PRUEBA — no es un sismo real" por los mismos filtros y formato, lo edita como haría una revisión y lo borra a los 30 segundos (`?keep=0` lo deja). Nunca toca el estado ni el feed. El script de despliegue imprime el comando exacto.
+
 Se ajusta con `NOTIFY_MIN_MAG`, `LOUD_MIN_MAG` y `NOTIFY_MAX_KM` al correr el script. En su primera vuelta el monitor solo aprende lo que ya está listado, y nunca anuncia nada de más de 30 minutos.
 
 ## Variables del backend

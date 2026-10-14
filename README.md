@@ -104,6 +104,8 @@ It scales to zero between ticks and stays within the free tiers of Cloud Run, Cl
 3. **Deploy:** run `PROJECT_ID=your-project TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@sismos_panama_live ./infra/deploy-monitor.sh`.
 4. **Connect the page:** paste the feed URL the script prints into `IGC_FEED.base` in `web/js/config.js`, and deploy the page.
 
+To check the Telegram side without a real quake, `POST /test` sends a message labelled "🧪 PRUEBA — no es un sismo real" through the same filters and format, edits it as a revision would, and deletes it after 30 seconds (`?keep=0` leaves it). It never touches the state or the feed. The deploy script prints the exact command.
+
 Tune it with `NOTIFY_MIN_MAG`, `LOUD_MIN_MAG` and `NOTIFY_MAX_KM` when running the script. On its first run the monitor only learns what's already listed; it never announces anything older than 30 minutes.
 
 ## Setting up the app and backend

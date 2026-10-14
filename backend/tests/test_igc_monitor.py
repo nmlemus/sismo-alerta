@@ -91,6 +91,9 @@ class FakeTelegram:
     async def edit(self, message_id, text):
         self.edits.append((message_id, text))
 
+    async def delete(self, message_id):
+        self.deleted = message_id
+
 
 @pytest.mark.asyncio
 async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
@@ -146,3 +149,19 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
                 await fn(a)
     finally:
         await runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_test_message_never_touches_state_or_feed(tmp_path):
+    app = monitor_main.make_app()
+    for fn in app.on_startup:
+        await fn(app)
+    tg = FakeTelegram()
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    steps = await monitor_main.run_test(app, keep_s=0.01, edit_after_s=0.01)
+    assert steps["passes_filters"] and steps["sent_message_id"] == 1 and steps["deleted"]
+    assert tg.sent[0][0].startswith("🧪 <b>PRUEBA — no es un sismo real</b>") and "M4.5" in tg.sent[0][0]
+    assert "M4.6" in tg.edits[0][1] and "revisado" in tg.edits[0][1] and tg.deleted == 1
+    assert not (tmp_path / "igc").exists()  # nothing written: no state, no feed
+    for fn in app.on_cleanup:
+        await fn(app)

@@ -27,7 +27,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiohttp
@@ -184,6 +184,44 @@ async def handle_tick(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+TEST_BANNER = "🧪 <b>PRUEBA — no es un sismo real</b>\n"
+
+
+async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float = 5) -> dict:
+    """Sends a clearly labelled test quake through the same filters and message code,
+    edits it as an IGC revision would, then deletes it. Never touches the state or
+    the public feed, so neither the page nor the list of known quakes changes."""
+    tg = app["telegram"]
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    q = IgcQuake(now - timedelta(minutes=1), 7.55, -80.65, 10.0, max(4.5, CFG["min_mag"]), False,
+                 "Localizado en Panamá a 25km al noroeste de Tonosí", CFG["igc_url"])
+    state: State = app.get("state") or State()
+    due = to_notify(merge(dict(state.known), [q]).new, min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
+    steps = {"passes_filters": bool(due), "telegram": isinstance(tg, Telegram)}
+    mid = await tg.send(TEST_BANNER + message(q, CFG["dashboard"]), silent=q.mag < CFG["loud_mag"])
+    steps["sent_message_id"] = mid
+    if mid is not None and edit_after_s:
+        await asyncio.sleep(edit_after_s)
+        revised = IgcQuake(q.time, q.lat, q.lon, 8.0, round(q.mag + 0.1, 1), True, q.place, q.url)
+        await tg.edit(mid, TEST_BANNER + message(revised, CFG["dashboard"]) + "\n✏️ <i>Actualizado por el IGC</i>")
+        steps["edited"] = True
+    if mid is not None and keep_s:
+        await asyncio.sleep(keep_s)
+        await tg.delete(mid)
+        steps["deleted"] = True
+    log.info("test %s", steps)
+    return steps
+
+
+async def handle_test(request: web.Request) -> web.Response:
+    keep = min(45.0, max(0.0, float(request.query.get("keep", "30"))))  # 0 = leave it in the channel
+    try:
+        return web.json_response(await run_test(request.app, keep_s=keep))
+    except Exception as e:  # noqa: BLE001
+        log.exception("test failed")
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_status(request: web.Request) -> web.Response:
     st: State | None = request.app.get("state")
     return web.json_response({"last_ok": st.last_ok if st else None, "known": len(st.known) if st else None,
@@ -207,6 +245,7 @@ def make_app() -> web.Application:
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     app.router.add_post("/tick", handle_tick)
+    app.router.add_post("/test", handle_test)
     app.router.add_get("/", handle_status)
     return app
 
