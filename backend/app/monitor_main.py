@@ -21,6 +21,11 @@ Environment:
                        down (maintenance, errors) or hasn't changed for STALE_MIN minutes.
   DOWN_NOTICE_MIN      10    Minutes IGC's list must be unavailable before the channel is told.
   STALE_MIN            15    Minutes without any change in IGC's page before checking EMSC too.
+  MONITOR_KEY          Shared secret: header X-Monitor-Key on /tick and /test, and the token
+                       Telegram sends with each update to /telegram. Empty: no checks (local).
+  RELAY_USERS          Who may relay IGC's WhatsApp notices to the bot, in a private chat:
+                       Telegram usernames (@noel) or numeric ids, comma-separated.
+  RELAY_MAX_AGE_MIN    180   A relayed notice is published if the quake is at most this old.
 """
 
 from __future__ import annotations
@@ -41,8 +46,8 @@ import aiohttp
 from aiohttp import web
 
 from .feeds import origin_from_emsc_feature
-from .igc import IGC_URL, IgcQuake, parse_list, quake_from_emsc
-from .monitor import (Known, MergeResult, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
+from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
+from .monitor import (Known, MergeResult, _clock, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
 
@@ -61,6 +66,9 @@ CFG = {
     "emsc_url": ENV("EMSC_FDSN_URL", "https://www.seismicportal.eu/fdsnws/event/1/query"),
     "down_notice_min": float(ENV("DOWN_NOTICE_MIN", "10")),
     "stale_min": float(ENV("STALE_MIN", "15")),
+    "key": ENV("MONITOR_KEY", ""),
+    "relay_users": {u.strip().lstrip("@").lower() for u in ENV("RELAY_USERS", "").split(",") if u.strip()},
+    "relay_max_age": float(ENV("RELAY_MAX_AGE_MIN", "180")),
     "agent": ENV("USER_AGENT", "SismoAlerta/1.0 (+https://github.com/nmlemus/sismo-alerta; checks once a minute with ETag)"),
 }
 
@@ -206,12 +214,12 @@ async def fetch_emsc_igc(session: aiohttp.ClientSession, now: datetime) -> list[
     return [quake_from_emsc(o) for o in origins if o.author.upper() == "IGC"]
 
 
-async def announce(tg, before: dict[str, Known], res: MergeResult) -> tuple[int, int]:
+async def announce(tg, before: dict[str, Known], res: MergeResult, max_age: float | None = None) -> tuple[int, int]:
     """New quakes worth a message get one; revised ones get their message edited and a
     silent reply saying what changed. Returns (sent, edited)."""
     sent = edited = 0
     due = to_notify(res.new + [k for k in res.changed if k.message_id is None],
-                    min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
+                    min_mag=CFG["min_mag"], max_age_min=max_age or CFG["max_age"], max_km=CFG["max_km"])
     for k in due:
         text = message(k.quake)
         near = nearby_earlier(k.quake, list(res.known.values()))
@@ -226,8 +234,11 @@ async def announce(tg, before: dict[str, Known], res: MergeResult) -> tuple[int,
             old = before[k.id].quake
             # The original message shows the current data, and a silent reply to it
             # says what changed, so the chat keeps the order of what happened.
-            await tg.edit(k.message_id, message(k.quake) + "\n\n" + edited_footer(old), buttons(k.quake, CFG["dashboard"]))
             note = revision_note(old, k.quake)
+            # With nothing a reader would notice (a nudge of the coordinates, or IGC's list
+            # confirming a relayed notice), the message is just refreshed, without "Editado".
+            footer = "\n\n" + edited_footer(old) if note else ""
+            await tg.edit(k.message_id, message(k.quake) + footer, buttons(k.quake, CFG["dashboard"]))
             if note:
                 await tg.send(note, silent=True, reply_to=k.message_id)
             k.sent_signature = signature(k.quake)
@@ -266,11 +277,16 @@ async def _save(store, state: State) -> None:
     await store.write("igc/state.json", state.dumps())
 
 
+async def load_state(app: web.Application) -> State:
+    if not app.get("state"):
+        app["state"] = State.loads(await app["store"].read("igc/state.json"))
+    return app["state"]
+
+
 async def tick(app: web.Application) -> dict:
     async with app["lock"]:
         store, tg, session = app["store"], app["telegram"], app["session"]
-        state: State = app.get("state") or State.loads(await store.read("igc/state.json"))
-        app["state"] = state
+        state = await load_state(app)
         now = datetime.now(timezone.utc).replace(microsecond=0)
         try:
             quakes, etag = await fetch_igc(session, state.etag)
@@ -326,7 +342,108 @@ async def backup_tick(app: web.Application, state: State, now: datetime, reason:
     return summary
 
 
+# ---------------------------------------------------------------- relayed WhatsApp notices
+
+HELP = ("Reenvíame (o pega aquí) el aviso del IGC tal como llega por WhatsApp y lo publico en el canal:\n\n"
+        "<code>Estado: PRELIMINAR\nFecha: 2026-10-14\nHora: 2:53:09PM hora local\nMagnitud: 3.6\n"
+        "Profundidad: 13km\nLocalizado en Panamá a 51km al sureste de Soná</code>\n\n"
+        "• La ubicación sale del pueblo, la distancia y la dirección. Si no conozco el pueblo, agrega una línea con <code>lat, lon</code>.\n"
+        "• Si empiezas con <b>prueba</b>, solo te muestro cómo quedaría, sin publicarlo.\n"
+        "• Si el sismo ya está en el canal, actualizo ese mensaje en vez de repetirlo.\n"
+        "• /estado dice si la lista del IGC está funcionando.")
+
+
+def relay_allowed(user: dict) -> bool:
+    users = CFG["relay_users"]
+    return str(user.get("id")) in users or (user.get("username") or "").lower() in users
+
+
+def status_text(state: State, now: datetime) -> str:
+    def local(iso):
+        return _clock(datetime.fromisoformat(iso)) if iso else "nunca"
+    if state.down_since:
+        head = f"⚠️ La lista del IGC no está disponible desde las {local(state.down_since)} ({state.down_reason})."
+    else:
+        head = f"✅ La lista del IGC funciona; última lectura a las {local(state.last_ok)}."
+    recent = [k for k in state.known.values() if now - k.quake.time <= timedelta(hours=24)]
+    return f"{head}\n\nSismos de las últimas 24 h: {len(recent)}; en el canal: {sum(1 for k in recent if k.message_id)}."
+
+
+async def relay_notice(app: web.Application, q: IgcQuake) -> str:
+    """Puts a relayed notice through the same rules as IGC's list. Returns what
+    happened, to tell the person who sent it."""
+    tg, now = app["telegram"], datetime.now(timezone.utc)
+    async with app["lock"]:
+        state = await load_state(app)
+        match = next((k for k in state.known.values() if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
+        res = merge_backup(state.known, [q])
+        sent, edited = await announce(tg, state.known, res, max_age=CFG["relay_max_age"])
+        state.known = res.known
+        await _save(app["store"], state)
+    if sent:
+        return "✅ Publicado en el canal."
+    if edited:
+        return "✏️ Ya estaba en el canal: actualicé ese mensaje."
+    if match and not res.changed:
+        where = "en el canal" if match.message_id else "registrado"
+        origin = {"igc": "de la lista del IGC", "relay": "de un aviso anterior", "emsc": "de EMSC"}[source(match.quake)]
+        return f"👍 Ya estaba {where} ({origin}); no hice nada."
+    reasons = []
+    if q.mag < CFG["min_mag"]:
+        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f}")
+    if now - q.time > timedelta(minutes=CFG["relay_max_age"]):
+        reasons.append(f"es de hace más de {CFG['relay_max_age']:.0f} min")
+    if not reasons:
+        reasons.append(f"está a más de {CFG['max_km']:.0f} km de Ciudad de Panamá")
+    return "📝 Lo guardé para la página, pero no lo publico en el canal: " + "; ".join(reasons) + "."
+
+
+async def handle_telegram(request: web.Request) -> web.Response:
+    """Telegram webhook: private messages to the bot."""
+    if not CFG["key"] or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != CFG["key"]:
+        return web.Response(status=403)
+    app, tg = request.app, request.app["telegram"]
+    try:
+        update = await request.json()
+        msg = update.get("message") or {}
+        chat, user = msg.get("chat") or {}, msg.get("from") or {}
+        text = (msg.get("text") or msg.get("caption") or "").strip()
+        if chat.get("type") != "private" or not text:
+            return web.json_response({"ok": True})
+
+        async def reply(t: str) -> None:
+            await tg.send(t, chat_id=chat["id"], reply_to=msg.get("message_id"))
+
+        if not relay_allowed(user):
+            await reply(f"Este bot publica los sismos del canal; solo sus administradores pueden mandarle avisos.\n\n"
+                        f"Tu id de Telegram es <code>{user.get('id')}</code>.")
+        elif text.startswith(("/start", "/ayuda", "/help")):
+            await reply(HELP)
+        elif text.startswith("/estado"):
+            await reply(status_text(await load_state(app), datetime.now(timezone.utc)))
+        else:
+            preview = re.match(r"/?prueba\b", text, re.I) is not None
+            try:
+                q = parse_notice(text)
+            except NoticeError as e:
+                await reply(f"❓ No pude leer el aviso: {e}.\n\n/ayuda muestra el formato.")
+            else:
+                if preview:
+                    await reply("👀 <b>Así quedaría</b> (no se publicó):\n\n" + message(q))
+                else:
+                    await reply(await relay_notice(app, q))
+    except Exception:  # noqa: BLE001 - answer 200 anyway, or Telegram resends it forever
+        log.exception("telegram update failed")
+    return web.json_response({"ok": True})
+
+
+def authorized(request: web.Request) -> bool:
+    return not CFG["key"] or request.headers.get("X-Monitor-Key") == CFG["key"]
+
+
 async def handle_tick(request: web.Request) -> web.Response:
+    if not authorized(request):
+        return web.Response(status=403)
     try:
         return web.json_response(await tick(request.app))
     except Exception as e:  # noqa: BLE001 - report, Scheduler retries next minute
@@ -367,6 +484,8 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
 
 
 async def handle_test(request: web.Request) -> web.Response:
+    if not authorized(request):
+        return web.Response(status=403)
     keep = min(45.0, max(0.0, float(request.query.get("keep", "30"))))  # 0 = leave it in the channel
     try:
         return web.json_response(await run_test(request.app, keep_s=keep))
@@ -400,6 +519,7 @@ def make_app() -> web.Application:
     app.on_cleanup.append(on_cleanup)
     app.router.add_post("/tick", handle_tick)
     app.router.add_post("/test", handle_test)
+    app.router.add_post("/telegram", handle_telegram)
     app.router.add_get("/", handle_status)
     return app
 

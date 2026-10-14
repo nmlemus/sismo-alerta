@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import html
 import math
+import unicodedata
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -130,3 +131,119 @@ def quake_from_emsc(origin) -> IgcQuake:
     return IgcQuake(origin.time.astimezone(timezone.utc).replace(microsecond=0), round(origin.lat, 3), round(origin.lon, 3),
                     round(origin.depth_km), round(origin.mag, 1), False, describe_place(origin.lat, origin.lon),
                     EMSC_EVENT + origin.source_id)
+
+
+# ---------------------------------------------------------------- IGC's WhatsApp notices, relayed by hand
+
+RELAY_URL = IGC_URL + "#aviso"  # marks a quake taken from a WhatsApp notice
+
+
+def from_relay(q: IgcQuake) -> bool:
+    return q.url == RELAY_URL
+
+
+def source(q: IgcQuake) -> str:
+    """'igc' (its list), 'relay' (its WhatsApp notice, place approximate) or 'emsc'."""
+    return "emsc" if from_emsc(q) else "relay" if from_relay(q) else "igc"
+
+
+# Other places IGC may measure from (only to read notices; describe_place uses TOWNS).
+MORE_TOWNS = [
+    ("Boquete", 8.78, -82.44), ("Volcán", 8.77, -82.64), ("Concepción", 8.51, -82.62), ("Bugaba", 8.48, -82.62),
+    ("Punta Burica", 8.03, -82.87), ("Remedios", 8.23, -81.83), ("Tolé", 8.24, -81.67), ("Las Lajas", 8.25, -81.87),
+    ("Horconcitos", 8.31, -82.15), ("Boca Chica", 8.22, -82.21), ("Santa Fe", 8.51, -81.08), ("Atalaya", 8.04, -80.93),
+    ("Ocú", 7.94, -80.78), ("Los Santos", 7.93, -80.42), ("Guararé", 7.81, -80.28), ("Pocrí", 7.66, -80.12),
+    ("Cambutal", 7.27, -80.48), ("Punta Mala", 7.47, -80.0), ("Isla Iguana", 7.63, -79.99), ("Jicarón", 7.27, -81.79),
+    ("Montuosa", 7.47, -82.24), ("Cébaco", 7.51, -81.19), ("Antón", 8.4, -80.26), ("Natá", 8.33, -80.52),
+    ("El Valle", 8.6, -80.13), ("Chame", 8.58, -79.88), ("San Carlos", 8.48, -79.95), ("Arraiján", 8.95, -79.65),
+    ("Panamá", 8.983, -79.52), ("Chepo", 9.17, -79.1), ("Portobelo", 9.55, -79.65), ("Taboga", 8.79, -79.55),
+    ("Contadora", 8.63, -79.03), ("San Miguel", 8.45, -78.93), ("Isla del Rey", 8.38, -78.9), ("Jaqué", 7.52, -78.17),
+    ("Garachiné", 8.07, -78.37), ("Yaviza", 8.16, -77.69), ("Metetí", 8.5, -77.98), ("Changuinola", 9.43, -82.52),
+    ("Almirante", 9.3, -82.4), ("Chiriquí Grande", 8.95, -82.12), ("Golfito", 8.64, -83.17), ("Ciudad Neily", 8.65, -82.94),
+    ("Paso Canoas", 8.53, -82.84), ("Puerto Jiménez", 8.53, -83.3), ("Juradó", 7.1, -77.76), ("Acandí", 8.51, -77.28),
+    ("Bahía Solano", 6.23, -77.4), ("Turbo", 8.09, -76.73),
+]
+_BEARING = {"norte": 0, "nornoreste": 22.5, "noreste": 45, "estenoreste": 67.5, "este": 90, "estesureste": 112.5,
+            "sureste": 135, "sursureste": 157.5, "sur": 180, "sursuroeste": 202.5, "suroeste": 225,
+            "oestesuroeste": 247.5, "oeste": 270, "oestenoroeste": 292.5, "noroeste": 315, "nornoroeste": 337.5}
+
+
+def _plain(s: str) -> str:
+    """Lowercase without accents or extra spaces, to compare names."""
+    s = unicodedata.normalize("NFKD", s.lower())
+    return " ".join("".join(c for c in s if not unicodedata.combining(c)).split())
+
+
+def _key(name: str) -> str:
+    return re.sub(r"^(la )?islas? (de )?", "", _plain(name).strip(" .,;"))
+
+
+def find_town(name: str) -> tuple[float, float] | None:
+    want = _key(name)
+    return next(((lat, lon) for n, lat, lon in TOWNS + MORE_TOWNS if _key(n) == want), None)
+
+
+class NoticeError(ValueError):
+    """A notice that can't be read; the message says what's missing, in Spanish."""
+
+
+def _field(text: str, name: str, pattern: str) -> re.Match | None:
+    return re.search(rf"{name}\s*:?\s*{pattern}", text, re.I)
+
+
+def parse_notice(text: str) -> IgcQuake:
+    """An IGC WhatsApp notice, pasted or forwarded as is:
+
+        Estado: PRELIMINAR
+        Fecha: 2026-10-14
+        Hora: 2:53:09PM hora local
+        Magnitud: 3.6
+        Profundidad: 13km
+        Localizado en Panamá a 51km al sureste de Soná
+
+    The location comes from the town, distance and direction (a few km off at
+    most), or from a "lat, lon" line if one is added."""
+    t = re.sub(r"[*_~]", "", text)
+    missing = []
+    estado = _field(t, "estado", r"([A-Za-zÁÉÍÓÚáéíóú]+)")
+    fecha = _field(t, "fecha", r"(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{4})")
+    hora = _field(t, "hora", r"(\d{1,2}:\d{2}(?::\d{2})?)\s*([ap])\.?\s*m\b")
+    mag = _field(t, "magnitud", r"(\d+(?:[.,]\d+)?)")
+    prof = _field(t, "profundidad", r"(\d+(?:[.,]\d+)?)\s*km")
+    place = re.search(r"(localizad[oa]\s+en\s+[^\n]+)", t, re.I)
+    for name, m in (("fecha", fecha), ("hora", hora), ("magnitud", mag), ("lugar (Localizado en …)", place)):
+        if not m:
+            missing.append(name)
+    if missing:
+        raise NoticeError("falta " + ", ".join(missing))
+    date = fecha.group(1)
+    if "/" in date:
+        d, mo, y = date.split("/")
+        date = f"{y}-{int(mo):02d}-{int(d):02d}"
+    clock = hora.group(1) + ("" if hora.group(1).count(":") == 2 else ":00") + hora.group(2).upper() + "M"
+    when = parse_local_time(date, clock)
+    place_text = " ".join(place.group(1).split()).rstrip(" .")
+
+    coords = re.search(r"(?<![\d.])(-?\d{1,2}\.\d+)\s*[,;]\s*(-?\d{2,3}\.\d+)", t)
+    if coords:
+        lat, lon = float(coords.group(1)), float(coords.group(2))
+        lon = -abs(lon)
+    else:
+        p = _plain(place_text)
+        far = re.search(r"\ba\s+(\d+(?:[.,]\d+)?)\s*km\s+al\s+([a-z\- ]+?)\s+de\s+(.+)$", p)
+        near = re.search(r"\bcerca\s+de\s+(.+)$", p)
+        town_name = far.group(3) if far else near.group(1) if near else None
+        town = find_town(town_name) if town_name else None
+        if not town:
+            raise NoticeError(f"no conozco «{town_name or place_text}». Vuelve a mandarlo con una línea extra: lat, lon (por ejemplo 7.55, -80.95)")
+        lat, lon = town
+        if far:
+            bearing = _BEARING.get(far.group(2).replace("-", "").replace(" ", ""))
+            if bearing is None:
+                raise NoticeError(f"no entiendo la dirección «{far.group(2)}»")
+            km = float(far.group(1).replace(",", "."))
+            lat += km * math.cos(math.radians(bearing)) / 111.2
+            lon += km * math.sin(math.radians(bearing)) / (111.2 * math.cos(math.radians(lat)))
+    return IgcQuake(when, round(lat, 3), round(lon, 3), float(prof.group(1).replace(",", ".")) if prof else 10.0,
+                    round(float(mag.group(1).replace(",", ".")), 1),
+                    bool(estado and estado.group(1).upper().startswith("REVIS")), place_text, RELAY_URL)

@@ -92,7 +92,10 @@ class FakeTelegram:
     def __init__(self):
         self.sent, self.edits = [], []
 
-    async def send(self, text, silent=False, reply_to=None, buttons=None):
+    async def send(self, text, silent=False, reply_to=None, buttons=None, chat_id=None):
+        if chat_id is not None:  # a private answer, not the channel
+            self.private = getattr(self, 'private', []) + [(chat_id, text)]
+            return 1000 + len(self.private)
         self.buttons = getattr(self, 'buttons', []) + [buttons]
         self.sent.append((text, silent))
         self.replies = getattr(self, 'replies', []) + [reply_to]
@@ -338,3 +341,120 @@ async def test_igc_error_status_and_no_network(tmp_path):
             await fn(app)
     finally:
         await runner.cleanup()
+
+
+# ---------------------------------------------------------------- IGC WhatsApp notices relayed to the bot
+
+NOTICE = """El Instituto de Geociencias de la Universidad de Panamá,
+Reporta el siguiente evento:
+Estado: PRELIMINAR
+Fecha: 2026-10-14
+Hora: 2:53:09PM hora local
+Magnitud: 3.6
+Profundidad: 13km
+Localizado en Panamá a 51km al sureste de Soná"""
+
+
+def test_reads_a_whatsapp_notice():
+    from app.igc import NoticeError, from_relay, parse_notice
+    from app.intensity import epicentral_km
+    q = parse_notice(NOTICE)
+    assert q.time == datetime(2026, 10, 14, 19, 53, 9, tzinfo=timezone.utc) and q.mag == 3.6 and q.depth_km == 13
+    assert not q.reviewed and from_relay(q) and q.place == "Localizado en Panamá a 51km al sureste de Soná"
+    assert abs(epicentral_km(8.008, -81.319, q.lat, q.lon) - 51) < 1 and q.lat < 8.008 and q.lon > -81.319  # SE of Soná
+    # WhatsApp bold marks, REVISADO, an island, a date with slashes, no seconds
+    r = parse_notice("*Estado:* REVISADO\n*Fecha:* 14/10/2026\n*Hora:* 2:31PM\n*Magnitud:* 3,8\n"
+                     "*Profundidad:* 5km\nLocalizado en Panamá a 35km al este de Isla Coiba")
+    assert r.reviewed and r.mag == 3.8 and r.time == datetime(2026, 10, 14, 19, 31, tzinfo=timezone.utc)
+    assert abs(r.lat - 7.45) < 0.01 and abs(epicentral_km(7.45, -81.77, r.lat, r.lon) - 35) < 1
+    # an unknown town asks for coordinates, which then win
+    with pytest.raises(NoticeError, match="no conozco «pueblo nuevo»"):
+        parse_notice(NOTICE.replace("Soná", "Pueblo Nuevo"))
+    c = parse_notice(NOTICE.replace("Soná", "Pueblo Nuevo") + "\n7.61, -80.95")
+    assert (c.lat, c.lon) == (7.61, -80.95)
+    with pytest.raises(NoticeError, match="falta magnitud"):
+        parse_notice(NOTICE.replace("Magnitud: 3.6", ""))
+
+
+@pytest.mark.asyncio
+async def test_relay_from_whatsapp_through_the_bot(tmp_path):
+    from aiohttp.test_utils import TestClient, TestServer
+    now = datetime.now(timezone.utc).replace(microsecond=0, second=9)
+    t = now - timedelta(minutes=3)
+    local = t.astimezone(PANAMA_TZ)
+    notice = (f"Estado: PRELIMINAR\nFecha: {local:%Y-%m-%d}\nHora: {local:%I:%M:%S%p} hora local\nMagnitud: 3.6\n"
+              f"Profundidad: 10km\nLocalizado en Panamá a 20km al sur de Soná")
+    igc_state = {"etag": '"m"', "body": "<b>Estamos en mantenimiento hasta las 4:30pm.</b>"}
+
+    async def igc(request):
+        if request.headers.get("If-None-Match") == igc_state["etag"]:
+            return web.Response(status=304)
+        return web.Response(text=igc_state["body"], content_type="text/html", headers={"ETag": igc_state["etag"]})
+
+    async def emsc(request):
+        return web.Response(status=204)
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/emsc", emsc)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    cfg = dict(monitor_main.CFG)
+    monitor_main.CFG.update(igc_url=f"http://127.0.0.1:{port}/", emsc_url=f"http://127.0.0.1:{port}/emsc",
+                            key="k3y", relay_users={"noel", "42"})
+    client = TestClient(TestServer(monitor_main.make_app()))
+    await client.start_server()
+    app, tg = client.server.app, FakeTelegram()
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    hook = {"X-Telegram-Bot-Api-Secret-Token": "k3y"}
+
+    def update(text, user=None):
+        user = user or {"id": 7, "username": "Noel"}
+        return {"update_id": 1, "message": {"message_id": 5, "from": user, "chat": {"id": user["id"], "type": "private"}, "text": text}}
+
+    try:
+        # only Telegram (with the secret) and the scheduler (with the key) get in
+        assert (await client.post("/telegram", json=update(notice))).status == 403
+        assert (await client.post("/tick")).status == 403
+        assert (await client.post("/tick", headers={"X-Monitor-Key": "k3y"})).status == 200
+        # a stranger is told no, and given their id
+        await client.post("/telegram", json=update(notice, {"id": 99, "username": "x"}), headers=hook)
+        assert tg.sent == [] and "<code>99</code>" in tg.private[-1][1]
+        # "prueba": a preview in the private chat only
+        await client.post("/telegram", json=update("prueba\n" + notice), headers=hook)
+        assert tg.sent == [] and tg.private[-1][1].startswith("👀 <b>Así quedaría</b>")
+        # the notice: published in the channel, and the sender is told
+        await client.post("/telegram", json=update(notice), headers=hook)
+        assert len(tg.sent) == 1 and "M3.6" in tg.sent[0][0] and "aviso del IGC por WhatsApp" in tg.sent[0][0]
+        assert tg.private[-1] == (7, "✅ Publicado en el canal.")
+        # the same notice again (by id this time): nothing new
+        await client.post("/telegram", json=update(notice, {"id": 42}), headers=hook)
+        assert len(tg.sent) == 1 and tg.private[-1][1].startswith("👍 Ya estaba en el canal (de un aviso anterior)")
+        # IGC revises it on WhatsApp: the message is edited and a reply says so
+        await client.post("/telegram", json=update(notice.replace("PRELIMINAR", "REVISADO").replace("3.6", "3.7")), headers=hook)
+        assert tg.private[-1][1] == "✏️ Ya estaba en el canal: actualicé ese mensaje."
+        assert "M3.7" in tg.edits[-1][1] and tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>") and tg.replies[1] == 1
+        # a small one is kept for the page only
+        lt2 = (t - timedelta(minutes=10)).astimezone(PANAMA_TZ)
+        small = notice.replace("3.6", "2.9").replace(f"{local:%I:%M:%S%p}", f"{lt2:%I:%M:%S%p}")
+        await client.post("/telegram", json=update(small), headers=hook)
+        assert len(tg.sent) == 2 and "M2.9 es menor que M3.5" in tg.private[-1][1]
+        # IGC's list comes back with the same quake: the message is refreshed (the WhatsApp
+        # note goes away) without "Editado" or a reply, since a reader would see no change
+        igc_state.update(etag='"v2"', body=_page([(t, 7.83, -81.32, 3.7, True)]))
+        r = await (await client.post("/tick", headers={"X-Monitor-Key": "k3y"})).json()
+        assert r["sent"] == 0 and r["edited"] == 1 and len(tg.sent) == 2
+        assert "WhatsApp" not in tg.edits[-1][1] and "Editado" not in tg.edits[-1][1]
+        await client.post("/telegram", json=update("/estado"), headers=hook)
+        assert tg.private[-1][1].startswith("✅ La lista del IGC funciona")
+        # unreadable text
+        await client.post("/telegram", json=update("hola"), headers=hook)
+        assert tg.private[-1][1].startswith("❓ No pude leer el aviso: falta fecha")
+    finally:
+        await client.close()
+        await runner.cleanup()
+        monitor_main.CFG.clear()
+        monitor_main.CFG.update(cfg)

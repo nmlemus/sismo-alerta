@@ -1,4 +1,5 @@
-"""Telegram Bot API: send a message to a channel, and edit it when IGC revises the quake."""
+"""Telegram Bot API: send a message to a channel, edit it when IGC revises the quake,
+and answer whoever relays an IGC notice to the bot."""
 
 from __future__ import annotations
 
@@ -25,9 +26,10 @@ class Telegram:
             return body.get("result") or {}
 
     async def send(self, text: str, silent: bool = False, reply_to: int | None = None,
-                   buttons: list[list[dict]] | None = None) -> int | None:
+                   buttons: list[list[dict]] | None = None, chat_id: str | int | None = None) -> int | None:
+        """Posts to the channel, or to chat_id (a private chat with someone who wrote to the bot)."""
         payload = {
-            "chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
+            "chat_id": chat_id or self.chat_id, "text": text, "parse_mode": "HTML",
             "disable_web_page_preview": True, "disable_notification": silent,
         }
         if buttons:
@@ -54,8 +56,9 @@ class Telegram:
 class LogOnly:
     """Stand-in when no bot is configured: logs what it would have sent."""
 
-    async def send(self, text: str, silent: bool = False, reply_to: int | None = None, buttons=None) -> int | None:
-        log.info("[telegram off] %s%s%s", "(silent) " if silent else "", f"(reply to {reply_to}) " if reply_to else "",
+    async def send(self, text: str, silent: bool = False, reply_to: int | None = None, buttons=None,
+                   chat_id=None) -> int | None:
+        log.info("[telegram off] %s%s%s%s", f"(to {chat_id}) " if chat_id else "", "(silent) " if silent else "", f"(reply to {reply_to}) " if reply_to else "",
                  text.replace("\n", " | "))
         return None
 
