@@ -27,7 +27,7 @@ function quakeCard(ev, note, withLink) {
   box.append(el('div', null, ev.place));
   box.append(el('div', 'muted', `${t('q.by', ev.agency)}${note ? ` · ${note}` : ''}`));
   if (withLink) {
-    const a = el('a', null, t('q.link'));
+    const a = el('a', null, t(ev.source === 'igc' ? 'q.linkIgc' : 'q.link'));
     a.href = emscLink(ev);
     a.target = '_blank';
     a.rel = 'noopener';

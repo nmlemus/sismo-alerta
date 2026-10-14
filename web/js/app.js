@@ -1,6 +1,6 @@
 // Page logic: loads the catalog, keeps it live, derives the sequence and redraws.
 
-import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
+import { EMSC, IGC_FEED, PLACES, REFERENCES, SEQUENCE } from './config.js';
 import { LiveFeed, emscLink, fetchEvent, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
@@ -8,6 +8,7 @@ import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
+import { fetchIgc, igcOn, igcOnly, sameQuake } from './igc.js';
 import { analyticsOn, track } from './analytics.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange } from './theme.js';
@@ -31,6 +32,7 @@ const state = {
   usgsError: false,
   rows: [],
   excluded: new Map(), // id -> { es, en }: false events (data/excluded.json)
+  igc: new Map(), // id -> event straight from IGC (feed of the IGC monitor)
   // Filters (also in the address: ?periodo=24h&mag=4). Period 'pre' shows the week before.
   area: 'zona', // zona | region | vista: which earthquakes count as the sequence
   areaBox: null, // for 'vista': the map view when it was chosen
@@ -76,6 +78,8 @@ function upsert(ev) {
 /** Toast + pulse for an event that just entered the counts, if it is recent. */
 function announce(ev) {
   if (!state.loaded || Date.now() - ev.t > 30 * 60e3 || !inBox(ev, SEQUENCE.region)) return;
+  // already announced when it came straight from IGC, minutes before EMSC had it
+  if (ev.source !== 'igc' && [...state.igc.values()].some((q) => sameQuake(q, ev))) return;
   toast(ev);
   map.flash(ev);
 }
@@ -94,7 +98,13 @@ async function resolve(id, tries = 0) {
 /** Mainshock, aftershocks in the zone, everything else in the region, and the week before. */
 function derive() {
   const start = new Date(SEQUENCE.start).getTime();
-  const loaded = [...state.events.values()].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
+  const emsc = [...state.events.values()];
+  // IGC published it too: the national network confirms what EMSC only has from one agency.
+  const igcAll = [...state.igc.values()];
+  for (const e of emsc) if (e.confirmed !== true && igcAll.some((q) => sameQuake(q, e))) e.confirmed = true;
+  // IGC's own events, until EMSC publishes the same quake (then EMSC's, with all its solutions).
+  const igc = igcOnly([...state.igc.values()].filter((e) => !state.excluded.has(e.id)), emsc);
+  const loaded = [...emsc, ...igc].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
   // Only confirmed events are shown as earthquakes and counted; the rest are listed apart.
   const all = loaded.filter((e) => e.confirmed === true);
   const unconfirmed = loaded.filter((e) => e.confirmed !== true).sort((a, b) => b.t - a.t);
@@ -415,7 +425,7 @@ function renderTable(rows, main) {
         td.append(sw);
       }
       if (c.key === 'link') {
-        const a = Object.assign(document.createElement('a'), { textContent: 'EMSC ↗', target: '_blank', rel: 'noopener', href: emscLink(r.ev) });
+        const a = Object.assign(document.createElement('a'), { textContent: r.ev.source === 'igc' ? 'IGC ↗' : 'EMSC ↗', target: '_blank', rel: 'noopener', href: emscLink(r.ev) });
         a.setAttribute('aria-label', t('link.aria', fmtTime(r.ev.t)));
         td.append(a);
       } else {
@@ -468,6 +478,23 @@ async function load() {
     setTimeout(load, 30000);
   }
   scheduleRender();
+}
+
+/** IGC monitor feed: the week once, then the last 6 h every minute. New quakes are announced. */
+async function loadIgc(file = 'latest.json') {
+  if (!igcOn()) return;
+  try {
+    const evs = await fetchIgc(file);
+    const emsc = [...state.events.values()];
+    for (const ev of evs) {
+      ev.place = placeName(ev.lat, ev.lon, PLACES, '');
+      const isNew = !state.igc.has(ev.id);
+      state.igc.set(ev.id, ev);
+      if (isNew && file !== 'latest.json' && igcOnly([ev], emsc).length) announce(ev);
+    }
+    state.igcOk = new Date();
+    scheduleRender();
+  } catch { /* the EMSC data keeps the page going */ }
 }
 
 async function loadExcluded() {
@@ -685,4 +712,6 @@ startLive();
 setInterval(poll, EMSC.pollSeconds * 1000);
 setInterval(load, 30 * 60e3); // full catalog: drops events EMSC deleted or reclassified
 setInterval(loadExcluded, 5 * 60e3);
+loadIgc();
+setInterval(() => loadIgc('recent.json'), IGC_FEED.pollSeconds * 1000);
 setInterval(loadUsgs, 30 * 60e3); // DYFI and the forecast change slowly

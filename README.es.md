@@ -119,6 +119,25 @@ Queda en `https://tu-proyecto.web.app`.
 - **Carga sobre el EMSC.** Cada visitante consulta al EMSC directamente, lo que va bien para cientos de personas. Si el link se vuelve viral, conviene que la página lea de un archivo que actualice el backend de la app, para no multiplicar las consultas.
 - **Mapas.** Sin configurar nada, el mapa usa los tiles de OpenStreetMap, que sirven para uso ligero. Para compartirlo en público, pide una clave gratuita de CARTO en https://carto.com/basemaps/apikey (uso no comercial: 5 millones de tiles al mes) y pégala en `TILES.cartoKey` de `web/js/config.js`.
 
+## Monitor del IGC y alertas por Telegram
+
+El Instituto de Geociencias (IGC) publica sus sismos en https://sismosgeociencias.up.ac.pa/ unos 2–3 minutos después de ocurrir, antes que EMSC (3–10 minutos), pero solo como una tabla HTML, sin API. El monitor (`backend/app/monitor_main.py`) es un servicio pequeño de Cloud Run que Cloud Scheduler despierta cada minuto:
+
+- **Revisa barato:** le pregunta al IGC si la página cambió (ETag), y solo la lee cuando cambió.
+- **Sigue las revisiones:** encuentra los sismos nuevos y las revisiones del IGC (PRELIMINAR → REVISADO, cambios de magnitud), y cada sismo conserva su id a través de ellas.
+- **Avisa por Telegram:** publica cada sismo nuevo en un canal de Telegram, con la intensidad estimada en Ciudad de Panamá y enlaces, y edita ese mensaje cuando el IGC revisa el sismo. Por defecto cubre los M3.5 o más a menos de 400 km de Ciudad de Panamá; por debajo de M4.0 llegan en silencio.
+- **Alimenta la página:** escribe un feed público en Cloud Storage que la página lee cada minuto (`IGC_FEED` en `web/js/config.js`). Los sismos del IGC cuentan como confirmados, aparecen antes de que EMSC los tenga y se unen con la versión de EMSC cuando esta llega.
+
+Se apaga entre revisiones y queda dentro de los niveles gratuitos de Cloud Run, Cloud Scheduler y Cloud Storage (el proyecto debe estar en el plan Blaze). Se identifica ante el IGC en su User-Agent.
+
+**Puesta en marcha**
+1. **Bot:** en Telegram, habla con @BotFather, manda `/newbot` y guarda el token.
+2. **Canal:** crea un canal público (por ejemplo `@sismos_panama_live`) y agrega el bot como administrador que puede publicar.
+3. **Despliegue:** corre `PROJECT_ID=tu-proyecto TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@sismos_panama_live ./infra/deploy-monitor.sh`.
+4. **Conecta la página:** pega la URL del feed que imprime el script en `IGC_FEED.base` de `web/js/config.js` y publica la página.
+
+Se ajusta con `NOTIFY_MIN_MAG`, `LOUD_MIN_MAG` y `NOTIFY_MAX_KM` al correr el script. En su primera vuelta el monitor solo aprende lo que ya está listado, y nunca anuncia nada de más de 30 minutos.
+
 ## Variables del backend
 
 | Variable | Por defecto | Para qué |

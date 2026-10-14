@@ -98,8 +98,8 @@ export function parseQuakeML(xml) {
   return out;
 }
 
-/** EMSC page with every agency's solution for an event. */
-export const emscLink = (ev) => `https://www.seismicportal.eu/eventdetails.html?unid=${encodeURIComponent(ev.id)}`;
+/** EMSC page with every agency's solution for an event (or the IGC page for an IGC-only one). */
+export const emscLink = (ev) => ev.url || `https://www.seismicportal.eu/eventdetails.html?unid=${encodeURIComponent(ev.id)}`;
 
 function areaParams(area) {
   return { minlat: area.minLat, maxlat: area.maxLat, minlon: area.minLon, maxlon: area.maxLon };

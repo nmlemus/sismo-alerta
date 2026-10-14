@@ -329,6 +329,48 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   check(!errors.some((e) => /Content Security Policy|gtag/i.test(e)), `analytics: no CSP errors ${JSON.stringify(errors.filter((e) => /Content Security Policy|gtag/i.test(e)).slice(0, 2))}`);
   await page.close();
 }
+// IGC monitor feed on: dedupe with EMSC, IGC-only quakes counted, IGC confirms a UNA-only
+// event, and a quake in the next 6-hour poll is announced.
+{
+  const page = await browser.newPage({ locale: 'es-PA' });
+  await page.clock.setFixedTime(NOW);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.route(/js\/config\.js$/, async (route) => {
+    const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8')
+      .replace("IGC_FEED = { base: '', pollSeconds: 60 }", "IGC_FEED = { base: 'https://storage.googleapis.com/test-bucket/igc/', pollSeconds: 2 }");
+    await route.fulfill({ contentType: 'text/javascript', body, headers: { 'content-security-policy': CSP } });
+  });
+  const dupOf = fixture.features.find((f) => f.properties.auth === 'IGC' && f.properties.time > '2026-10-10').properties;
+  const ev = (id, time, lat, lon, mag) => ({ id, time, lat, lon, depth: 10, mag, reviewed: false, url: `https://sismosgeociencias.up.ac.pa/ultimosismo.html?id=${id}` });
+  const week = [
+    ev('igc-dup', new Date(new Date(dupOf.time).getTime() + 10e3).toISOString(), dupOf.lat + 0.05, dupOf.lon, dupOf.mag),
+    ev('igc-new', new Date(NOW.getTime() - 90e3).toISOString(), 7.6, -80.9, 4.3),
+    ev('igc-conf', '2026-10-11T12:00:20Z', 7.52, -80.8, 4.0), // confirms FAKE_UNA
+  ];
+  let recent = [week[1]];
+  await page.route(/storage\.googleapis\.com\/test-bucket\/igc\//, (route) => {
+    const events = route.request().url().includes('recent.json') ? recent : week;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events }) });
+  });
+  await page.route(/seismicportal\.eu\/fdsnws/, emscRoute);
+  await page.route(/tile\.openstreetmap\.org|earthquake\.usgs\.gov/, (route) => route.abort());
+  await page.routeWebSocket(/seismicportal\.eu/, () => {});
+  await page.goto(base);
+  await page.waitForFunction(() => document.querySelector('#n-after').textContent !== '—', null, { timeout: 15000 });
+  await page.waitForTimeout(600);
+  check((await page.textContent('#n-after')) === '307', `igc: +1 IGC-only quake and +1 confirmed by IGC, the duplicate not counted (${await page.textContent('#n-after')})`);
+  check(await page.isHidden('#unconfirmed-note'), 'igc: the UNA-only event is confirmed by IGC');
+  check((await page.locator('#events a', { hasText: 'IGC ↗' }).count()) === 1, 'igc: IGC-only quake links to the IGC page');
+  recent = [week[1], ev('igc-live', new Date(NOW.getTime() - 30e3).toISOString(), 7.65, -81.0, 4.4)];
+  await page.waitForSelector('#toast:not([hidden])', { timeout: 6000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  check((await page.textContent('#n-after')) === '308' && (await page.textContent('#toast')).includes('M4.4'), `igc: a new quake in the 6-hour poll is counted and announced (${await page.textContent('#n-after')})`);
+  const real = errors.filter((e) => !e.includes('Failed to load resource')); // tiles and USGS are blocked on purpose here
+  check(real.length === 0, `igc: no page errors ${JSON.stringify(real.slice(0, 2))}`);
+  await page.close();
+}
 await browser.close();
 server.close();
 if (failures.length) { console.error(`${failures.length} check(s) failed`); process.exit(1); }

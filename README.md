@@ -87,6 +87,25 @@ It goes live at `https://your-project.web.app`.
 - **Load on EMSC.** Each visitor queries EMSC directly, which is fine for hundreds of people. If the link goes viral, the page should read from a file the app backend updates instead.
 - **Maps.** With no setup the map uses OpenStreetMap's tiles, which are fine for light use. For public use, get a free CARTO key at https://carto.com/basemaps/apikey (non-commercial: 5 million tiles a month) and paste it into `TILES.cartoKey` in `web/js/config.js`.
 
+## IGC monitor and Telegram alerts
+
+The Instituto de Geociencias (IGC) publishes its quakes at https://sismosgeociencias.up.ac.pa/ about 2–3 minutes after they happen, faster than EMSC (3–10 minutes), but only as an HTML table with no API. The monitor (`backend/app/monitor_main.py`) is a small Cloud Run service that Cloud Scheduler wakes once a minute:
+
+- **Checks cheaply:** it asks IGC whether the page changed (ETag), and only reads it when it did.
+- **Tracks revisions:** it finds new quakes and IGC's revisions (PRELIMINAR → REVISADO, magnitude changes), keeping each quake's id through them.
+- **Alerts on Telegram:** it posts each new quake to a Telegram channel, with the estimated intensity in Panama City and links, and edits that message when IGC revises the quake. By default it covers M3.5 or larger within 400 km of Panama City, arriving silently below M4.0.
+- **Feeds the page:** it writes a public feed to Cloud Storage that the page reads every minute (`IGC_FEED` in `web/js/config.js`). IGC quakes count as confirmed, show up before EMSC has them, and are merged with EMSC's version once it arrives.
+
+It scales to zero between ticks and stays within the free tiers of Cloud Run, Cloud Scheduler and Cloud Storage (the project must be on the Blaze plan). It identifies itself to IGC in its User-Agent.
+
+**Setup**
+1. **Bot:** in Telegram, talk to @BotFather, send `/newbot` and keep the token.
+2. **Channel:** create a public channel (for example `@sismos_panama_live`) and add the bot as an administrator that can post messages.
+3. **Deploy:** run `PROJECT_ID=your-project TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=@sismos_panama_live ./infra/deploy-monitor.sh`.
+4. **Connect the page:** paste the feed URL the script prints into `IGC_FEED.base` in `web/js/config.js`, and deploy the page.
+
+Tune it with `NOTIFY_MIN_MAG`, `LOUD_MIN_MAG` and `NOTIFY_MAX_KM` when running the script. On its first run the monitor only learns what's already listed; it never announces anything older than 30 minutes.
+
 ## Setting up the app and backend
 
 ### 1. Firebase and Google Cloud

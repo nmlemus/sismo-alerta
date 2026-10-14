@@ -163,3 +163,20 @@ test('confirmation rule', () => {
   assert.equal(isConfirmed([]), null);
   assert.equal(featureToEvent(fixture.features[0]).confirmed, null); // live, not IGC: unknown yet
 });
+
+// ---------------------------------------------------------------- IGC feed
+import { igcOnly, parseIgcFeed } from '../js/igc.js';
+
+test('IGC feed: events are confirmed and dropped once EMSC has the same quake', () => {
+  const feed = { events: [
+    { id: 'igc-1', time: '2026-10-14T06:54:06Z', lat: 7.754, lon: -80.735, depth: 10, mag: 3.7, reviewed: false, url: 'https://sismosgeociencias.up.ac.pa/ultimosismo.html?x=1' },
+    { id: 'igc-2', time: '2026-10-14T05:42:51Z', lat: 7.185, lon: -81.345, depth: 10, mag: 4.2, reviewed: true, url: 'u' },
+    { id: 'bad', time: 'nope', lat: 1, lon: 1, mag: 3 },
+  ] };
+  const igc = parseIgcFeed(feed);
+  assert.equal(igc.length, 2);
+  assert.deepEqual([igc[0].confirmed, igc[0].agency, igc[0].source, igc[1].origins[0].mode], [true, 'IGC', 'igc', 'manual']);
+  // EMSC has the second one, 20 s later and 15 km away (another solution of the same quake)
+  const emsc = [{ t: new Date('2026-10-14T05:43:11Z'), lat: 7.3, lon: -81.3 }, { t: new Date('2026-10-14T06:30:00Z'), lat: 7.75, lon: -80.73 }];
+  assert.deepEqual(igcOnly(igc, emsc).map((e) => e.id), ['igc-1']);
+});
