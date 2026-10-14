@@ -37,6 +37,7 @@ function quakeCard(ev, note, withLink) {
 }
 
 const note = (kind) => (kind === 'seq' ? '' : t(`note.${kind}`));
+const AUX = new Set(['other', 'pre', 'unconfirmed']); // drawn on the secondary layer
 
 export class QuakeMap {
   constructor({ mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone }) {
@@ -130,7 +131,7 @@ export class QuakeMap {
   get tMin() { return this.showPre ? -SEQUENCE.preDays * 24 * H : Math.max(0, this.from == null ? 0 : this.from - this.main.t.getTime()); }
 
   /** Rebuild markers for new data. */
-  setData({ main, seq, others, pre, dayIndex, days, ref, now, showPre, from = null }) {
+  setData({ main, seq, others, pre, unconfirmed = [], dayIndex, days, ref, now, showPre, from = null }) {
     this.main = main;
     this.from = from;
     this.now = now;
@@ -158,6 +159,7 @@ export class QuakeMap {
       ...seq.map((ev) => ({ ev, kind: 'seq' })),
       ...others.map((ev) => ({ ev, kind: 'other' })),
       ...pre.map((ev) => ({ ev, kind: 'pre' })),
+      ...unconfirmed.map((ev) => ({ ev, kind: 'unconfirmed' })),
     ];
     const seen = new Set();
     // Big ones first so small markers stay on top and clickable.
@@ -180,12 +182,13 @@ export class QuakeMap {
         this.markers.delete(id);
       }
     }
+    this.hasUnconfirmed = unconfirmed.length > 0;
     this.setRef(ref);
     this.legend();
     this.render();
   }
 
-  layerOf(kind) { return kind === 'other' || kind === 'pre' ? this.otherLayer : this.quakeLayer; }
+  layerOf(kind) { return AUX.has(kind) ? this.otherLayer : this.quakeLayer; }
 
   setRef(ref) {
     if (this.refMarker) this.map.removeLayer(this.refMarker);
@@ -206,7 +209,7 @@ export class QuakeMap {
   colorOf(m) {
     if (m.kind === 'main') return token('--main');
     if (m.kind === 'pre') return token('--pre');
-    if (m.kind === 'other') return token('--muted');
+    if (m.kind === 'other' || m.kind === 'unconfirmed') return token('--muted');
     return this.palette.colorOf(this.dayIndex(m.ev));
   }
 
@@ -234,7 +237,9 @@ export class QuakeMap {
       const key = `${recent}|${c}|${ink}`;
       if (key === m.key) continue;
       m.key = key;
-      if (m.kind === 'other') {
+      if (m.kind === 'unconfirmed') {
+        m.marker.setStyle({ color: ink, weight: 1.5, dashArray: '3 3', fillOpacity: 0 });
+      } else if (m.kind === 'other') {
         m.marker.setStyle({ color: c, weight: 1.2, fillColor: c, fillOpacity: 0.15 });
       } else if (m.kind === 'pre') {
         m.marker.setStyle({ color: recent ? ink : surface, weight: 2, fillColor: c, fillOpacity: 0.95 });
@@ -296,6 +301,7 @@ export class QuakeMap {
     if (this.showPre) add({ background: 'var(--pre)' }, t('leg.preDays', SEQUENCE.preDays));
     add({ background: 'transparent', border: '2px solid var(--ink)' }, t('leg.recent', RECENT_HOURS));
     add({ border: '1.5px solid var(--muted)', background: 'transparent' }, t('leg.outside'));
+    if (this.hasUnconfirmed) add({ border: '1.5px dashed var(--ink)', background: 'transparent' }, t('leg.unconf'));
     add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, t('leg.ref'));
   }
 }

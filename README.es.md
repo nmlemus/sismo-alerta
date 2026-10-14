@@ -82,6 +82,8 @@ Los filtros sobre el mapa eligen el periodo (semana previa, todo, hoy, últimas 
 
 La gráfica de frecuencia muestra, hora a hora, los sismos por hora de las 6 horas anteriores (todos y M4+, en escala logarítmica), y debajo, en paneles alineados, su magnitud promedio y la intensidad estimada promedio en el lugar de referencia.
 
+**Solo sismos confirmados.** La página le pide a EMSC todas las soluciones de cada sismo (QuakeML con `includeallorigins`), no solo la que EMSC prefiere. Un sismo cuenta si lo localizó la red nacional (el IGC, definido en `EMSC.trustedAuthors`), si lo localizaron dos o más agencias, o si un analista revisó alguna solución. Una única solución automática de otra agencia, como el falso M4.0 cerca de Ciudad de Panamá del 13 de octubre de 2026, queda *sin confirmar*: se dibuja hueca en el mapa y se lista debajo, pero no se cuenta ni genera avisos. Si otra agencia lo confirma, empieza a contarse solo.
+
 **Sismos falsos.** A veces una agencia publica una solución automática de un sismo que no ocurrió. Agrega su id de EMSC en `web/data/excluded.json`, con el motivo en español e inglés, y publica: la página lo saca de todas las cifras, gráficas, el mapa y la tabla, y lo lista en el pie. Las páginas ya abiertas toman el cambio en menos de 5 minutos. Los eventos que el propio EMSC borra o reclasifica desaparecen solos: en vivo, o en la siguiente recarga completa del catálogo (cada 30 minutos).
 
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.

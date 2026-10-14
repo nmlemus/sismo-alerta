@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { EMSC, PLACES } from '../js/config.js';
-import { featureToEvent, fetchSince } from '../js/emsc.js';
+import { featureToEvent, fetchSince, isConfirmed, parseQuakeML } from '../js/emsc.js';
+import { toQuakeML } from './quakeml.mjs';
 import {
   describeMmi, epicentralKm, estimateMmi, hypocentralKm, mmiAww2014, mmiLevel, placeName,
 } from '../js/intensity.js';
@@ -53,7 +54,7 @@ test('fetchSince pages past the 300-event limit without duplicates', async () =>
     const q = new URL(url).searchParams;
     const start = new Date(`${q.get('start')}Z`).getTime();
     const page = all.filter((f) => new Date(f.properties.time).getTime() >= start).slice(0, Number(q.get('limit')));
-    return { ok: true, status: page.length ? 200 : 204, json: async () => ({ features: page }) };
+    return { ok: true, status: page.length ? 200 : 204, text: async () => toQuakeML(page) };
   };
   const evs = await fetchSince('2026-10-09T17:50:00Z', { minLat: 5, maxLat: 10, minLon: -84, maxLon: -77 }, 2.5, fakeFetch);
   assert.equal(EMSC.pageSize, 300);
@@ -136,4 +137,29 @@ test('frequency: rolling 6-hour window, per hour, with means once there are enou
   assert.equal(s[7].rate, 0.5);
   // fewer than 3 events: no mean
   assert.equal(s[0].meanMag, null);
+});
+
+// ---------------------------------------------------------------- confirmation
+test('EMSC QuakeML: every solution is read, and lone automatic foreign ones are not confirmed', () => {
+  const [fake, border] = parseQuakeML(read('emsc_quakeml_2026-10-13.xml'));
+  // the false M4.0 near Panama City: one automatic UNA solution
+  assert.equal(fake.id, '20261013_0000413');
+  assert.deepEqual([fake.mag, fake.lat, fake.lon, fake.depth, fake.agency], [4, 8.9766, -79.3632, 20, 'UNA']);
+  assert.equal(fake.t.toISOString(), '2026-10-13T21:25:48.000Z');
+  assert.equal(fake.confirmed, false);
+  // a real M4.6 at the border: UCR (preferred), INET, UNA and IGC
+  assert.equal(border.agency, 'UCR');
+  assert.deepEqual(border.origins.map((o) => o.author), ['UCR', 'INET', 'UNA', 'IGC']);
+  assert.equal(border.confirmed, true);
+});
+
+test('confirmation rule', () => {
+  const o = (author, mode = 'automatic') => ({ author, mode });
+  assert.equal(isConfirmed([o('IGC')]), true); // the national network, even automatic
+  assert.equal(isConfirmed([o('UNA'), o('UCR')]), true); // two agencies
+  assert.equal(isConfirmed([o('NEIC', 'manual')]), true); // reviewed by an analyst
+  assert.equal(isConfirmed([o('UNA')]), false); // one automatic foreign solution
+  assert.equal(isConfirmed([o('UNA'), o('UNA')]), false); // the same agency twice
+  assert.equal(isConfirmed([]), null);
+  assert.equal(featureToEvent(fixture.features[0]).confirmed, null); // live, not IGC: unknown yet
 });

@@ -20,6 +20,10 @@ export const EMSC = {
   ws: 'wss://www.seismicportal.eu/standing_order/websocket',
   pageSize: 300, // EMSC returns at most 300 events per request
   pollSeconds: 120, // safety net in case the live connection drops
+  // An event counts only if it is confirmed: a solution from one of these agencies,
+  // two or more agencies, or a solution reviewed by an analyst. A lone automatic
+  // solution from another agency stays "unconfirmed" (shown, never counted).
+  trustedAuthors: ['IGC'], // Instituto de Geociencias, Universidad de Panamá (national network)
 };
 
 // Reference points for "how strong would it feel here". siteAdjust is added to the

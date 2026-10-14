@@ -1,0 +1,215 @@
+<?xml version="1.0"?>
+<q:quakeml xmlns:q="http://quakeml.org/xmlns/quakeml/1.2"  xmlns="http://quakeml.org/xmlns/bed/1.2">
+<eventParameters publicID="smi:eu.emsc/unid">
+<event publicID="quakeml:eu.emsc/event/20261013_0000413">
+  <preferredOriginID>quakeml:eu.emsc/event/20261013_0000413/origin/IPCSEJGTP</preferredOriginID>
+  <preferredMagnitudeID>quakeml:eu.emsc/event/20261013_0000413/origin/IPCSEJGTP/mag/1</preferredMagnitudeID>
+  <type>earthquake</type>
+  <typeCertainty>known</typeCertainty>
+  <creationInfo>
+    <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+    <authorURI>smi:smi-registry/organization/UNA</authorURI>
+    <creationTime>2026-10-13T21:35:57.298184Z</creationTime>
+  </creationInfo>
+  <description>
+    <text>PANAMA</text>
+    <type>Flinn-Engdahl region</type>
+  </description>
+  <origin publicID="quakeml:eu.emsc/event/20261013_0000413/origin/IPCSEJGTP">
+    <time>
+      <value>2026-10-13T21:25:48.0Z</value>
+    </time>
+    <latitude>
+      <value>8.9766</value>
+    </latitude>
+    <longitude>
+      <value>-79.3632</value>
+    </longitude>
+    <depth>
+      <value>20000.0</value>
+    </depth>
+    <depthType>from location</depthType>
+    <methodID>smi:eu.emsc-csem/origin_method/GEIGER</methodID>
+    <quality>
+      <usedPhaseCount>0</usedPhaseCount>
+      <usedStationCount>0</usedStationCount>
+    </quality>
+    <evaluationMode>automatic</evaluationMode>
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UNA</authorURI>
+    </creationInfo>
+  </origin>
+  <magnitude publicID="quakeml:eu.emsc/event/20261013_0000413/origin/IPCSEJGTP/mag/1">
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UNA</authorURI>
+    </creationInfo>
+    <originID>quakeml:eu.emsc/event/20261013_0000413/origin/IPCSEJGTP</originID>
+    <mag>
+      <value>4.0</value>
+    </mag>
+    <type>m</type>
+  </magnitude>
+</event>
+<event publicID="quakeml:eu.emsc/event/20261013_0000340">
+  <preferredOriginID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCRCDHZM</preferredOriginID>
+  <preferredMagnitudeID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCRCDHZM/mag/1</preferredMagnitudeID>
+  <type>earthquake</type>
+  <typeCertainty>known</typeCertainty>
+  <creationInfo>
+    <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+    <authorURI>smi:smi-registry/organization/UCR</authorURI>
+    <creationTime>2026-10-13T18:00:57.614809Z</creationTime>
+  </creationInfo>
+  <description>
+    <text>PANAMA-COSTA RICA BORDER REGION</text>
+    <type>Flinn-Engdahl region</type>
+  </description>
+  <origin publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCRCDHZM">
+    <time>
+      <value>2026-10-13T17:00:30.0Z</value>
+    </time>
+    <latitude>
+      <value>9.0810</value>
+    </latitude>
+    <longitude>
+      <value>-82.2790</value>
+    </longitude>
+    <depth>
+      <value>3000.0</value>
+    </depth>
+    <depthType>from location</depthType>
+    <methodID>smi:eu.emsc-csem/origin_method/GEIGER</methodID>
+    <quality>
+      <usedPhaseCount>0</usedPhaseCount>
+      <usedStationCount>0</usedStationCount>
+    </quality>
+    <evaluationMode>automatic</evaluationMode>
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UCR</authorURI>
+    </creationInfo>
+  </origin>
+  <magnitude publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCRCDHZM/mag/1">
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UCR</authorURI>
+    </creationInfo>
+    <originID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCRCDHZM</originID>
+    <mag>
+      <value>4.6</value>
+    </mag>
+    <type>m</type>
+  </magnitude>
+  <origin publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFCTK">
+    <time>
+      <value>2026-10-13T17:00:49.0Z</value>
+    </time>
+    <latitude>
+      <value>9.0770</value>
+    </latitude>
+    <longitude>
+      <value>-82.1990</value>
+    </longitude>
+    <depth>
+      <value>3000.0</value>
+    </depth>
+    <depthType>from location</depthType>
+    <methodID>smi:eu.emsc-csem/origin_method/GEIGER</methodID>
+    <quality>
+      <usedPhaseCount>0</usedPhaseCount>
+      <usedStationCount>0</usedStationCount>
+    </quality>
+    <evaluationMode>manual</evaluationMode>
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/INET</authorURI>
+    </creationInfo>
+  </origin>
+  <magnitude publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFCTK/mag/1">
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/INET</authorURI>
+    </creationInfo>
+    <originID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFCTK</originID>
+    <mag>
+      <value>4.6</value>
+    </mag>
+    <type>m</type>
+  </magnitude>
+  <origin publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQXYISU">
+    <time>
+      <value>2026-10-13T17:00:50.0Z</value>
+    </time>
+    <latitude>
+      <value>9.0087</value>
+    </latitude>
+    <longitude>
+      <value>-82.2016</value>
+    </longitude>
+    <depth>
+      <value>21000.0</value>
+    </depth>
+    <depthType>from location</depthType>
+    <methodID>smi:eu.emsc-csem/origin_method/GEIGER</methodID>
+    <quality>
+      <usedPhaseCount>0</usedPhaseCount>
+      <usedStationCount>0</usedStationCount>
+    </quality>
+    <evaluationMode>automatic</evaluationMode>
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UNA</authorURI>
+    </creationInfo>
+  </origin>
+  <magnitude publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQXYISU/mag/1">
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/UNA</authorURI>
+    </creationInfo>
+    <originID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCQXYISU</originID>
+    <mag>
+      <value>4.8</value>
+    </mag>
+    <type>m</type>
+  </magnitude>
+  <origin publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFICN">
+    <time>
+      <value>2026-10-13T17:00:50.0Z</value>
+    </time>
+    <latitude>
+      <value>9.0546</value>
+    </latitude>
+    <longitude>
+      <value>-82.2785</value>
+    </longitude>
+    <depth>
+      <value>2000.0</value>
+    </depth>
+    <depthType>from location</depthType>
+    <methodID>smi:eu.emsc-csem/origin_method/GEIGER</methodID>
+    <quality>
+      <usedPhaseCount>0</usedPhaseCount>
+      <usedStationCount>0</usedStationCount>
+    </quality>
+    <evaluationMode>automatic</evaluationMode>
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/IGC</authorURI>
+    </creationInfo>
+  </origin>
+  <magnitude publicID="quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFICN/mag/1">
+    <creationInfo>
+      <agencyURI>smi:smi-registry/organization/EMSC</agencyURI>
+      <authorURI>smi:smi-registry/organization/IGC</authorURI>
+    </creationInfo>
+    <originID>quakeml:eu.emsc/event/20261013_0000340/origin/IPCQVFICN</originID>
+    <mag>
+      <value>4.6</value>
+    </mag>
+    <type>m</type>
+  </magnitude>
+</event>
+</eventParameters>
+</q:quakeml>

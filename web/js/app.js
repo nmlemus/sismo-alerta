@@ -1,7 +1,7 @@
 // Page logic: loads the catalog, keeps it live, derives the sequence and redraws.
 
 import { EMSC, PLACES, REFERENCES, SEQUENCE } from './config.js';
-import { LiveFeed, emscLink, fetchSince, fetchUpdated } from './emsc.js';
+import { LiveFeed, emscLink, fetchEvent, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
 import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
@@ -62,18 +62,42 @@ function periodStart(main, now) {
 
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
 
+/** Adds or updates an event. Returns whether it just became confirmed (new to the counts). */
 function upsert(ev) {
   if (state.excluded.has(ev.id)) return false;
   ev.place = placeName(ev.lat, ev.lon, PLACES, ev.region.toUpperCase() === 'COSTA RICA' ? 'Costa Rica' : '');
   const prev = state.events.get(ev.id);
+  // A live update only has the preferred solution: keep what we knew about the others.
+  if (ev.confirmed == null && prev && prev.origins) { ev.origins = prev.origins; ev.confirmed = prev.confirmed; }
   state.events.set(ev.id, ev);
-  return !prev;
+  return ev.confirmed === true && !(prev && prev.confirmed === true);
+}
+
+/** Toast + pulse for an event that just entered the counts, if it is recent. */
+function announce(ev) {
+  if (!state.loaded || Date.now() - ev.t > 30 * 60e3 || !inBox(ev, SEQUENCE.region)) return;
+  toast(ev);
+  map.flash(ev);
+}
+
+/** Live events that aren't the national network's: fetch all solutions to decide. */
+async function resolve(id, tries = 0) {
+  try {
+    const [ev] = await fetchEvent(id);
+    if (ev && upsert(ev)) announce(ev);
+    scheduleRender();
+  } catch {
+    if (tries < 3) setTimeout(() => resolve(id, tries + 1), 30000);
+  }
 }
 
 /** Mainshock, aftershocks in the zone, everything else in the region, and the week before. */
 function derive() {
   const start = new Date(SEQUENCE.start).getTime();
-  const all = [...state.events.values()].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
+  const loaded = [...state.events.values()].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
+  // Only confirmed events are shown as earthquakes and counted; the rest are listed apart.
+  const all = loaded.filter((e) => e.confirmed === true);
+  const unconfirmed = loaded.filter((e) => e.confirmed !== true).sort((a, b) => b.t - a.t);
   const zone = all.filter((e) => e.t.getTime() >= start && inBox(e, SEQUENCE.zone));
   if (!zone.length) return null;
   const main = zone.reduce((a, b) => (b.mag > a.mag ? b : a));
@@ -89,7 +113,7 @@ function derive() {
     if (!dayOf.has(d)) { dayOf.set(d, days.length); days.push(d); }
   }
   const dayIndex = (e) => dayOf.get(fmtDay(e.t)) ?? 0;
-  return { main, seq, others, pre, days, dayIndex };
+  return { main, seq, others, pre, days, dayIndex, unconfirmed: unconfirmed.filter((e) => e.t >= main.t || state.showPre) };
 }
 
 function stats({ main, seq, pre }, now) {
@@ -266,10 +290,11 @@ function render() {
   renderForecast();
   map.setArea(areaBox());
   map.setData({
-    main, seq: seqV, others: d.others.filter(pass), pre: preV, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
+    main, seq: seqV, others: d.others.filter(pass), pre: preV, unconfirmed: d.unconfirmed, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
     now: Math.max(now, (s.latest || main).t.getTime()), from: windowed ? fromT : null,
   });
   renderTable(rowsV, main);
+  renderUnconfirmed(d.unconfirmed);
 }
 
 function renderDyfi(main, reported) {
@@ -456,6 +481,22 @@ async function loadExcluded() {
   } catch { /* keep the last list */ }
 }
 
+function renderUnconfirmed(list) {
+  const box = $('#unconfirmed-note');
+  box.hidden = !list.length;
+  if (!list.length) return;
+  const summary = Object.assign(document.createElement('summary'), { textContent: t('unconf.summary', fmtInt(list.length)) });
+  const ul = document.createElement('ul');
+  for (const e of list.slice(0, 20)) {
+    const li = document.createElement('li');
+    const who = [...new Set((e.origins || [{ author: e.agency }]).map((o) => o.author))].join(', ');
+    li.append(`${fmtTime(e.t)} · M${fmtMag(e.mag)} · ${e.place} · ${e.confirmed == null ? t('unconf.pending') : t('unconf.only', who)} `);
+    li.append(Object.assign(document.createElement('a'), { textContent: 'EMSC ↗', href: emscLink(e), target: '_blank', rel: 'noopener' }));
+    ul.append(li);
+  }
+  box.replaceChildren(summary, Object.assign(document.createElement('p'), { textContent: t('unconf.why') }), ul);
+}
+
 function renderExcluded() {
   const box = $('#excluded-note');
   const items = [...state.excluded.entries()];
@@ -486,7 +527,7 @@ async function poll() {
   const since = new Date(state.lastSync.getTime() - 5 * 60e3);
   try {
     const evs = await fetchUpdated(since, LOAD_START, SEQUENCE.region, SEQUENCE.minMag);
-    evs.forEach(upsert);
+    for (const ev of evs) if (upsert(ev)) announce(ev);
     state.lastSync = new Date();
     scheduleRender();
   } catch { /* keep the last data; the status pill already says we're not live */ }
@@ -499,12 +540,9 @@ function startLive() {
     onEvent: (ev) => {
       if (state.excluded.has(ev.id)) return;
       if (ev.t < LOAD_START || !inBox(ev, SEQUENCE.region) || ev.mag < SEQUENCE.minMag) return;
-      const isNew = upsert(ev);
+      if (upsert(ev)) announce(ev);
+      if (state.events.get(ev.id)?.confirmed == null) resolve(ev.id);
       state.lastSync = new Date();
-      if (isNew && state.loaded) {
-        toast(ev);
-        map.flash(ev);
-      }
       scheduleRender();
     },
   });

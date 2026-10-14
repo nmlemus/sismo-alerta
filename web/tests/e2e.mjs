@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { toQuakeML } from './quakeml.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT = process.argv[2];
@@ -38,8 +39,22 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, r));
 const base = `http://127.0.0.1:${server.address().port}/`;
 
+// An unconfirmed event: one automatic UNA solution, like the false M4.0 of Oct 13.
+fixture.features.push(preEvent('FAKE_UNA', '2026-10-11T12:00:00.0Z', 7.5, -80.8, 4.0));
+fixture.features.at(-1).properties.auth = 'UNA';
+const LONE = new Set(['FAKE_UNA', 'TEST_UNA']);
+
+/** EMSC FDSN mock: QuakeML with all origins, as the page asks for. */
+function emscRoute(route) {
+  const feats = fdsn(route.request().url());
+  return feats.length
+    ? route.fulfill({ contentType: 'application/xml', body: toQuakeML(feats, { lone: LONE }) })
+    : route.fulfill({ status: 204, body: '' });
+}
+
 function fdsn(url) {
   const q = new URL(url).searchParams;
+  if (q.get('eventid')) return [...fixture.features, ...liveFeatures].filter((f) => f.properties.unid === q.get('eventid'));
   const start = new Date(`${q.get('start')}Z`).getTime();
   const after = q.get('updatedafter') ? new Date(`${q.get('updatedafter')}Z`).getTime() : null;
   let feats = fixture.features.filter((f) => new Date(f.properties.time).getTime() >= start);
@@ -51,6 +66,7 @@ function fdsn(url) {
 // The browser's clock is fixed to a moment covered by the fixture, so periods like
 // "last 24 h" don't depend on the day the test runs.
 const NOW = new Date('2026-10-12T22:00:00Z');
+const liveFeatures = []; // sent over the fake WebSocket; also answerable by eventid
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); };
 
@@ -64,10 +80,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
-    const feats = fdsn(route.request().url());
-    return feats.length
-      ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ type: 'FeatureCollection', features: feats }) })
-      : route.fulfill({ status: 204, body: '' });
+    return emscRoute(route);
   });
   const tileZooms = [];
   await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com/, (route) => {
@@ -102,6 +115,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#main-mag')) === 'M7.7', `${vp.name}: mainshock M7.7`);
   check(/^\d+(\.\d)?$/.test(await page.textContent('#freq')) && (await page.textContent('#freq-sub')).includes('primeras 6 h'), `${vp.name}: current frequency tile (${await page.textContent('#freq')})`);
   check((await page.textContent('#big-mag')) === 'M6.6', `${vp.name}: largest aftershock M6.6`);
+  check((await page.textContent('#unconfirmed-note summary')).startsWith('1 sismo sin confirmar'), `${vp.name}: the lone automatic UNA event is listed as unconfirmed, not counted`);
   check((await page.locator('#events tbody tr').count()) === 306, `${vp.name}: table lists 306 events`);
   check((await page.textContent('#live-text')) === 'En vivo', `${vp.name}: live status (got ${await page.textContent('#live-text')})`);
   await page.waitForTimeout(vp.name === 'mobile' ? 1500 : 0);
@@ -231,6 +245,19 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(400);
   check((await page.textContent('#n-after')) === '305', `${vp.name}: event deleted by EMSC is removed (${await page.textContent('#n-after')})`);
   check((await page.textContent('#excluded-note')).includes('Geociencias'), `${vp.name}: excluded false events listed in the footer`);
+  // a live event with only an automatic UNA solution: checked, not counted, no toast
+  const tu = new Date(NOW.getTime() - 30e3).toISOString();
+  const una = { type: 'Feature', id: 'TEST_UNA', geometry: { type: 'Point', coordinates: [-79.36, 8.97, -20] },
+    properties: { unid: 'TEST_UNA', time: tu, lastupdate: tu, lat: 8.97, lon: -79.36, depth: 20, mag: 4.7, magtype: 'm', auth: 'UNA', evtype: 'ke', flynn_region: 'PANAMA' } };
+  liveFeatures.push(una);
+  await page.click('[data-area="region"]');
+  socket.send(JSON.stringify({ action: 'create', data: una }));
+  await page.waitForTimeout(800);
+  check((await page.textContent('#n-after')) === '360', `${vp.name}: unconfirmed live event not counted (${await page.textContent('#n-after')})`);
+  check((await page.textContent('#unconfirmed-note summary')).startsWith('2 sismos sin confirmar'), `${vp.name}: and listed as unconfirmed`);
+  check(!(await page.textContent('#toast')).includes('M4.7'), `${vp.name}: and no toast for it`);
+  check((await page.locator('#map path[stroke-dasharray="3 3"]').count()) >= 1, `${vp.name}: unconfirmed drawn hollow and dashed on the map`);
+  await page.click('[data-area="zona"]');
 
   // reference point
   await page.selectOption('#ref-select', 'chitre');
@@ -286,8 +313,7 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   await page.route(/data\/excluded\.json/, (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events: [{ id: EXCLUDE, es: 'prueba', en: 'test' }] }) }));
   await page.route(/googletagmanager\.com\/gtag\/js/, (route) => { gtagLoaded = true; return route.fulfill({ contentType: 'text/javascript', body: '/* gtag stub */' }); });
   await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
-    const feats = fdsn(route.request().url());
-    return feats.length ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: feats }) }) : route.fulfill({ status: 204, body: '' });
+    return emscRoute(route);
   });
   await page.route(/tile\.openstreetmap\.org|earthquake\.usgs\.gov/, (route) => route.abort());
   await page.routeWebSocket(/seismicportal\.eu/, () => {});

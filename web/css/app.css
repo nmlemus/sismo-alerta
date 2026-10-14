@@ -111,7 +111,10 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .seg .btn + .btn { margin-left: -1px; }
 .seg .btn:not(:first-child):not(:last-child) { border-radius: 0; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; font-size: 13px; }
-.excluded ul { margin: 4px 0 0; padding-left: 18px; }
+.unconfirmed { margin-top: 8px; font-size: 13px; }
+.unconfirmed summary { cursor: pointer; }
+.unconfirmed p { margin: 6px 0 0; }
+.unconfirmed ul, .excluded ul { margin: 4px 0 0; padding-left: 18px; }
 .fgroup { display: inline-flex; align-items: center; gap: 8px; }
 .flabel { color: var(--ink-2); font-size: 12px; }
 .fnote { flex-basis: 100%; margin: 0; font-size: 13px; }

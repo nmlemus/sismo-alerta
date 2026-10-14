@@ -26,10 +26,77 @@ export function featureToEvent(f) {
     agency: String(p.auth || 'EMSC'),
     region: String(p.flynn_region || ''),
     updated: p.lastupdate ? new Date(p.lastupdate) : null,
+    // The live feed only carries the preferred solution: confirmed at once if it is
+    // the national network's, otherwise unknown until all solutions are fetched.
+    origins: null,
+    confirmed: EMSC.trustedAuthors.includes(String(p.auth || '')) ? true : null,
   };
 }
 
 const iso = (d) => d.toISOString().slice(0, 19);
+
+/**
+ * Confirmed when a trusted agency (the national network) located it, when two or more
+ * agencies did, or when an analyst reviewed a solution. A single automatic solution
+ * from another agency is what produced the false M4.0 of 2026-10-13: not confirmed.
+ */
+export function isConfirmed(origins, trusted = EMSC.trustedAuthors) {
+  if (!origins || !origins.length) return null; // unknown yet
+  const authors = new Set(origins.map((o) => o.author));
+  return [...authors].some((a) => trusted.includes(a)) || authors.size >= 2 || origins.some((o) => o.mode === 'manual');
+}
+
+const unescape = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+const tag = (s, name) => { const m = new RegExp(`<${name}>\\s*([^<]*?)\\s*</${name}>`).exec(s); return m ? unescape(m[1]) : null; };
+const value = (s, name) => { const m = new RegExp(`<${name}>\\s*<value>\\s*([^<]*?)\\s*</value>`).exec(s); return m ? m[1] : null; };
+const lastPart = (uri) => (uri || '').split('/').pop();
+
+/**
+ * EMSC QuakeML (format=xml&includeallorigins=true) -> events like featureToEvent's,
+ * plus every agency's solution (origins: [{ author, mode }]) and `confirmed`.
+ * EMSC's XML is regular, so a few regular expressions read it without an XML library.
+ */
+export function parseQuakeML(xml) {
+  const out = [];
+  for (const [, publicID, body] of xml.matchAll(/<event publicID="([^"]+)">([\s\S]*?)<\/event>/g)) {
+    const own = body.replace(/<origin [\s\S]*?<\/origin>/g, '').replace(/<magnitude [\s\S]*?<\/magnitude>/g, '').replace(/<description>[\s\S]*?<\/description>/g, '');
+    const type = tag(own, 'type');
+    if (type && type !== 'earthquake') continue;
+    const origins = [...body.matchAll(/<origin publicID="([^"]+)">([\s\S]*?)<\/origin>/g)].map(([, pid, o]) => ({
+      pid,
+      t: new Date(value(o, 'time')),
+      lat: Number(value(o, 'latitude')),
+      lon: Number(value(o, 'longitude')),
+      depthKm: Number(value(o, 'depth')) / 1000,
+      mode: tag(o, 'evaluationMode') || '',
+      author: lastPart(tag(o, 'authorURI')),
+    }));
+    const mags = [...body.matchAll(/<magnitude publicID="([^"]+)">([\s\S]*?)<\/magnitude>/g)].map(([, pid, mm]) => ({
+      pid, origin: tag(mm, 'originID'), mag: Number(value(mm, 'mag')), type: tag(mm, 'type') || '',
+    }));
+    const prefO = tag(own, 'preferredOriginID'), prefM = tag(own, 'preferredMagnitudeID');
+    const o = origins.find((x) => x.pid === prefO) || origins[0];
+    const m = mags.find((x) => x.pid === prefM) || mags.find((x) => x.origin === o?.pid) || mags[0];
+    if (!o || !m || !Number.isFinite(m.mag) || !Number.isFinite(o.lat) || !Number.isFinite(o.lon) || Number.isNaN(o.t.getTime())) continue;
+    const created = tag(own, 'creationTime');
+    const list = origins.map(({ author, mode }) => ({ author, mode }));
+    out.push({
+      id: lastPart(publicID),
+      t: o.t,
+      lat: o.lat,
+      lon: o.lon,
+      depth: Number.isFinite(o.depthKm) ? Math.round(o.depthKm * 10) / 10 : 10,
+      mag: m.mag,
+      magType: m.type,
+      agency: o.author || 'EMSC',
+      region: (/<description>\s*<text>([^<]*)<\/text>/.exec(body) || [])[1] || '',
+      updated: created ? new Date(created) : null,
+      origins: list,
+      confirmed: isConfirmed(list),
+    });
+  }
+  return out;
+}
 
 /** EMSC page with every agency's solution for an event. */
 export const emscLink = (ev) => `https://www.seismicportal.eu/eventdetails.html?unid=${encodeURIComponent(ev.id)}`;
@@ -39,12 +106,17 @@ function areaParams(area) {
 }
 
 async function query(params, fetchImpl) {
-  const url = `${EMSC.fdsn}?${new URLSearchParams({ format: 'json', ...params })}`;
+  // XML with every agency's solution, to tell confirmed events from lone automatic ones.
+  const url = `${EMSC.fdsn}?${new URLSearchParams({ format: 'xml', includeallorigins: 'true', ...params })}`;
   const r = await fetchImpl(url);
   if (r.status === 204) return [];
   if (!r.ok) throw new Error(`EMSC respondió ${r.status}`);
-  const j = await r.json();
-  return (j.features || []).map(featureToEvent).filter(Boolean);
+  return parseQuakeML(await r.text());
+}
+
+/** One event with all its solutions (used for live events that aren't the national network's). */
+export function fetchEvent(id, fetchImpl = fetch) {
+  return query({ eventid: id }, fetchImpl);
 }
 
 /**
@@ -60,7 +132,7 @@ export async function fetchSince(start, area, minMag, fetchImpl = fetch) {
     }, fetchImpl);
     for (const e of batch) out.set(e.id, e);
     if (batch.length < EMSC.pageSize) break;
-    const last = batch[batch.length - 1].t;
+    const last = new Date(Math.max(...batch.map((e) => e.t.getTime())));
     if (last.getTime() <= cursor.getTime()) break; // >300 events in the same second: give up paging
     cursor = last;
   }
