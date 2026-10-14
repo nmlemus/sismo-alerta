@@ -1,0 +1,10 @@
+{
+  "_comment": "Earthquakes published by EMSC that turned out to be false. The page drops them from every count, chart, map and table, and lists them in the footer. Open pages pick up changes within 5 minutes of a deploy.",
+  "events": [
+    {
+      "id": "20261013_0000413",
+      "es": "M4.0 del 13 de octubre, 4:25 p. m., cerca de Ciudad de Panamá: lo publicó de forma automática la Universidad Nacional de Costa Rica (UNA), sin confirmación de otras agencias, y según el Instituto de Geociencias de la Universidad de Panamá no ocurrió.",
+      "en": "M4.0 on October 13, 4:25 PM, near Panama City: published automatically by the National University of Costa Rica (UNA), with no confirmation from other agencies; according to the Institute of Geosciences of the University of Panama, it did not happen."
+    }
+  ]
+}

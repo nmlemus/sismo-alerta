@@ -82,6 +82,8 @@ Los filtros sobre el mapa eligen el periodo (semana previa, todo, hoy, últimas 
 
 La gráfica de frecuencia muestra, hora a hora, los sismos por hora de las 6 horas anteriores (todos y M4+, en escala logarítmica), y debajo, en paneles alineados, su magnitud promedio y la intensidad estimada promedio en el lugar de referencia.
 
+**Sismos falsos.** A veces una agencia publica una solución automática de un sismo que no ocurrió. Agrega su id de EMSC en `web/data/excluded.json`, con el motivo en español e inglés, y publica: la página lo saca de todas las cifras, gráficas, el mapa y la tabla, y lo lista en el pie. Las páginas ya abiertas toman el cambio en menos de 5 minutos. Los eventos que el propio EMSC borra o reclasifica desaparecen solos: en vivo, o en la siguiente recarga completa del catálogo (cada 30 minutos).
+
 Para seguir otro sismo, cambia `SEQUENCE` en `web/js/config.js`.
 
 La página está en español e inglés. Toma el idioma del navegador, y el botón ES/EN de arriba lo cambia y lo recuerda. Para compartir un enlace en un idioma, agrega `?lang=en` o `?lang=es`. Todos los textos están en `web/js/i18n.js`.

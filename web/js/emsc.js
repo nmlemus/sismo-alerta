@@ -74,10 +74,12 @@ export function fetchUpdated(since, start, area, minMag, fetchImpl = fetch) {
   }, fetchImpl);
 }
 
-/** WebSocket that reconnects with backoff. onEvent(event, action); onStatus('open'|'closed'). */
+/** WebSocket that reconnects with backoff. onEvent(event, action); onStatus('open'|'closed');
+ * onRemove(id) when EMSC deletes an event or reclassifies it as not an earthquake. */
 export class LiveFeed {
-  constructor({ onEvent, onStatus, url = EMSC.ws, WebSocketImpl = globalThis.WebSocket }) {
+  constructor({ onEvent, onStatus, onRemove = () => {}, url = EMSC.ws, WebSocketImpl = globalThis.WebSocket }) {
     this.onEvent = onEvent;
+    this.onRemove = onRemove;
     this.onStatus = onStatus;
     this.url = url;
     this.WS = WebSocketImpl;
@@ -100,6 +102,8 @@ export class LiveFeed {
       try {
         const msg = JSON.parse(m.data);
         const ev = featureToEvent(msg.data);
+        const id = msg.data?.properties?.unid || msg.data?.id;
+        if (msg.action === 'delete' || (!ev && id && msg.action === 'update')) { if (id) this.onRemove(String(id)); return; }
         if (ev) this.onEvent(ev, msg.action);
       } catch { /* ignore malformed messages */ }
     };

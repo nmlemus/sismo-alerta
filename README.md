@@ -50,6 +50,8 @@ Filters above the map choose the period (week before, all, today, last 24 h, las
 
 The frequency chart shows, every hour, the earthquakes per hour over the previous 6 hours (all and M4+, on a log scale), with their mean magnitude and mean estimated intensity at the reference place in aligned panels below.
 
+**False events.** Agencies sometimes publish an automatic solution for an earthquake that didn't happen. List its EMSC id in `web/data/excluded.json`, with the reason in Spanish and English, and deploy: the page leaves it out of every count, chart, map and table and lists it in the footer. Pages already open pick the change up within 5 minutes. Events that EMSC itself deletes or reclassifies disappear on their own: live, or at the next full reload of the catalog (every 30 minutes).
+
 To follow a different earthquake, change `SEQUENCE` in `web/js/config.js`.
 
 The page is in Spanish and English. It follows the browser's language, and the ES/EN button at the top switches and remembers it. To share a link in one language, add `?lang=en` or `?lang=es`. All text lives in `web/js/i18n.js`.

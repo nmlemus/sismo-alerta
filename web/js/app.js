@@ -30,6 +30,7 @@ const state = {
   usgs: null, // { dyfi, dyfiCount, forecast, url } once loaded
   usgsError: false,
   rows: [],
+  excluded: new Map(), // id -> { es, en }: false events (data/excluded.json)
   // Filters (also in the address: ?periodo=24h&mag=4). Period 'pre' shows the week before.
   area: 'zona', // zona | region | vista: which earthquakes count as the sequence
   areaBox: null, // for 'vista': the map view when it was chosen
@@ -62,6 +63,7 @@ function periodStart(main, now) {
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
 
 function upsert(ev) {
+  if (state.excluded.has(ev.id)) return false;
   ev.place = placeName(ev.lat, ev.lon, PLACES, ev.region.toUpperCase() === 'COSTA RICA' ? 'Costa Rica' : '');
   const prev = state.events.get(ev.id);
   state.events.set(ev.id, ev);
@@ -175,6 +177,7 @@ function chart(sel, fn, opts) {
 
 function render() {
   renderStatus();
+  renderExcluded();
   if (!state.loaded) return;
   const d = derive();
   document.body.classList.toggle('empty', !d);
@@ -423,10 +426,15 @@ function toast(ev) {
   toast.timer = setTimeout(() => { box.hidden = true; }, 12000);
 }
 
+/** The whole catalog again. Replacing (not merging) drops events EMSC has since deleted
+ * or reclassified; events that arrived live after the newest one in the catalog are kept. */
 async function load() {
   try {
     const evs = await fetchSince(LOAD_START, SEQUENCE.region, SEQUENCE.minMag);
-    evs.forEach(upsert);
+    const newest = evs.reduce((a, e) => Math.max(a, e.t.getTime()), 0);
+    const live = [...state.events.values()].filter((e) => e.t.getTime() > newest);
+    state.events = new Map();
+    [...evs, ...live].forEach(upsert);
     state.loaded = true;
     state.error = null;
     state.lastSync = new Date();
@@ -435,6 +443,32 @@ async function load() {
     setTimeout(load, 30000);
   }
   scheduleRender();
+}
+
+async function loadExcluded() {
+  try {
+    const r = await fetch('data/excluded.json', { cache: 'no-cache' });
+    if (!r.ok) return;
+    const j = await r.json();
+    state.excluded = new Map((j.events || []).filter((e) => e && e.id).map((e) => [String(e.id), e]));
+    for (const id of state.excluded.keys()) state.events.delete(id);
+    scheduleRender();
+  } catch { /* keep the last list */ }
+}
+
+function renderExcluded() {
+  const box = $('#excluded-note');
+  const items = [...state.excluded.entries()];
+  box.hidden = !items.length;
+  if (!items.length) return;
+  const list = document.createElement('ul');
+  for (const [id, e] of items) {
+    const li = document.createElement('li');
+    li.append(`${e[lang()] || e.es || id} `);
+    li.append(Object.assign(document.createElement('a'), { textContent: 'EMSC ↗', href: emscLink({ id }), target: '_blank', rel: 'noopener' }));
+    list.append(li);
+  }
+  box.replaceChildren(Object.assign(document.createElement('b'), { textContent: t('excluded.title') }), list);
 }
 
 async function loadUsgs() {
@@ -461,7 +495,9 @@ async function poll() {
 function startLive() {
   const feed = new LiveFeed({
     onStatus: (s) => { state.live = s; scheduleRender(); },
+    onRemove: (id) => { if (state.events.delete(id)) scheduleRender(); },
     onEvent: (ev) => {
+      if (state.excluded.has(ev.id)) return;
       if (ev.t < LOAD_START || !inBox(ev, SEQUENCE.region) || ev.mag < SEQUENCE.minMag) return;
       const isNew = upsert(ev);
       state.lastSync = new Date();
@@ -605,8 +641,10 @@ setupReference();
 setupFilters();
 setupTable();
 renderStatus();
-load();
+loadExcluded().finally(load);
 loadUsgs();
 startLive();
 setInterval(poll, EMSC.pollSeconds * 1000);
+setInterval(load, 30 * 60e3); // full catalog: drops events EMSC deleted or reclassified
+setInterval(loadExcluded, 5 * 60e3);
 setInterval(loadUsgs, 30 * 60e3); // DYFI and the forecast change slowly

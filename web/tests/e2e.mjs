@@ -226,6 +226,11 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#n-after')) === '306', `${vp.name}: live event counted`);
   check((await page.textContent('#last-sub')).startsWith('M4.9'), `${vp.name}: latest aftershock updated`);
   check((await page.textContent('#toast')).includes('M4.9'), `${vp.name}: toast shown`);
+  // EMSC deletes it: it goes away
+  socket.send(JSON.stringify({ action: 'delete', data: { type: 'Feature', id: 'TEST_1', properties: { unid: 'TEST_1' } } }));
+  await page.waitForTimeout(400);
+  check((await page.textContent('#n-after')) === '305', `${vp.name}: event deleted by EMSC is removed (${await page.textContent('#n-after')})`);
+  check((await page.textContent('#excluded-note')).includes('Geociencias'), `${vp.name}: excluded false events listed in the footer`);
 
   // reference point
   await page.selectOption('#ref-select', 'chitre');
@@ -265,6 +270,8 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.close();
 }
 // Analytics on (fake id): the production CSP must let gtag load, and filters send events.
+// The same page checks the false-event list with one real aftershock listed in it.
+const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:00' && f.properties.lat < 8 && f.properties.lon < -80).properties.unid;
 {
   const page = await browser.newPage({ locale: 'es-PA' });
   await page.clock.setFixedTime(NOW);
@@ -276,6 +283,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
     const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8').replace("measurementId: ''", "measurementId: 'G-TEST1234'");
     await route.fulfill({ contentType: 'text/javascript', body, headers: { 'content-security-policy': CSP } });
   });
+  await page.route(/data\/excluded\.json/, (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events: [{ id: EXCLUDE, es: 'prueba', en: 'test' }] }) }));
   await page.route(/googletagmanager\.com\/gtag\/js/, (route) => { gtagLoaded = true; return route.fulfill({ contentType: 'text/javascript', body: '/* gtag stub */' }); });
   await page.route(/seismicportal\.eu\/fdsnws/, (route) => {
     const feats = fdsn(route.request().url());
@@ -285,6 +293,8 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.routeWebSocket(/seismicportal\.eu/, () => {});
   await page.goto(base);
   await page.waitForFunction(() => document.querySelector('#n-after').textContent !== '—', null, { timeout: 15000 });
+  check((await page.textContent('#n-after')) === '304', `exclusions: a listed event is left out of the counts (${await page.textContent('#n-after')})`);
+  check((await page.locator(`#events a[href$="${EXCLUDE}"]`).count()) === 0, 'exclusions: and out of the table');
   await page.click('[data-mag="4"]');
   const events = await page.evaluate(() => window.dataLayer.map((a) => [...a]).filter((a) => a[0] === 'event').map((a) => `${a[1]}:${a[2].kind}=${a[2].value}`));
   check(gtagLoaded, 'analytics: gtag script requested');

@@ -94,6 +94,7 @@ const STR = {
     'search.aria': 'Buscar sismos',
     'foot.1': '<b>Esto no es una alerta temprana.</b> Los sismos se publican minutos después de ocurrir. Ante un sismo fuerte, sigue las indicaciones de SINAPROC.',
     'foot.2': 'Sismos: <a href="https://www.seismicportal.eu" rel="noopener">EMSC Seismic Portal</a>, en vivo. Reúne las soluciones del Instituto de Geociencias de la Universidad de Panamá (IGC), la Universidad Nacional de Costa Rica (UNA), el USGS (NEIC) y el propio EMSC; se muestra la que EMSC considera preferida, y cada sismo enlaza a su ficha. Las cifras cuentan el área elegida en los filtros (recuadro punteado del mapa); por defecto, la zona de réplicas: 6.5°–8.2° N, 79.5°–82.3° O. Las magnitudes mezclan escalas (mw para los mayores, magnitud local "m" del IGC y la UNA, mb del EMSC y el USGS) y pueden revisarse.',
+    'excluded.title': 'Sismos excluidos por ser falsos:',
     'foot.analytics': 'Usamos Google Analytics, sin funciones de publicidad, para saber cuántas personas usan la página y desde qué países. Tu ubicación en "Mi ubicación" nunca sale de tu navegador.',
     'foot.3': 'Pronóstico y reportes de la gente: <a href="https://earthquake.usgs.gov/earthquakes/eventpage/us6000u18k" rel="noopener">USGS</a>. Intensidad estimada: ecuación de Atkinson, Worden y Wald (2014), con +0.6 en Ciudad de Panamá y Colón. Colores de intensidad: escala de los mapas de sacudida del USGS. Mapa: © colaboradores de OpenStreetMap.',
 
@@ -301,6 +302,7 @@ const STR = {
     'search.aria': 'Search earthquakes',
     'foot.1': '<b>This is not an early warning.</b> Earthquakes are published minutes after they happen. In a strong earthquake, follow the instructions of SINAPROC, Panama’s civil protection agency.',
     'foot.2': 'Earthquakes: <a href="https://www.seismicportal.eu" rel="noopener">EMSC Seismic Portal</a>, live. It brings together the solutions of the Institute of Geosciences of the University of Panama (IGC), the National University of Costa Rica (UNA), USGS (NEIC) and EMSC itself; the one EMSC prefers is shown, and each earthquake links to its page. Figures count the area chosen in the filters (dotted box on the map); by default, the aftershock zone: 6.5°–8.2° N, 79.5°–82.3° W. Magnitudes mix scales (mw for the largest, local magnitude "m" from IGC and UNA, mb from EMSC and USGS) and may be revised.',
+    'excluded.title': 'Earthquakes left out because they were false:',
     'foot.analytics': 'We use Google Analytics, with advertising features off, to know how many people use the page and from which countries. Your position in "My location" never leaves your browser.',
     'foot.3': 'Forecast and people’s reports: <a href="https://earthquake.usgs.gov/earthquakes/eventpage/us6000u18k" rel="noopener">USGS</a>. Estimated intensity: Atkinson, Worden and Wald (2014) equation, with +0.6 in Panama City and Colón. Intensity colors: USGS ShakeMap scale. Map: © OpenStreetMap contributors.',
 
