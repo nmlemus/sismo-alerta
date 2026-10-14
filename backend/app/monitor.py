@@ -108,6 +108,41 @@ def message(q: IgcQuake, dashboard_url: str) -> str:
     return "\n".join(lines)
 
 
+def revision_note(before: IgcQuake, after: IgcQuake) -> str:
+    """Short reply to the original message: what IGC changed."""
+    parts = []
+    if f"{before.mag:.1f}" != f"{after.mag:.1f}":
+        parts.append(f"M{before.mag:.1f} → <b>M{after.mag:.1f}</b>")
+    moved = epicentral_km(before.lat, before.lon, after.lat, after.lon)
+    if moved >= 3 or before.place != after.place:
+        parts.append(f"ahora {_esc(_place(after))}" + (f" (se movió {moved:.0f} km)" if moved >= 3 else ""))
+    if abs((after.time - before.time).total_seconds()) >= 2:
+        parts.append(f"hora {_clock(after.time)}")
+    head = "✏️ <b>Revisado por el IGC</b>" if after.reviewed and not before.reviewed else "✏️ <b>Actualizado por el IGC</b>"
+    return head + (": " + "; ".join(parts) if parts else ": confirmado sin cambios")
+
+
+def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":
+    """An already announced quake shortly before and close to this one (same cluster,
+    or a revision IGC listed as a new row): the new message replies to it."""
+    best = None
+    for k in known:
+        if k.message_id is None or k.quake is q:
+            continue
+        dt = (q.time - k.quake.time).total_seconds()
+        if 0 <= dt <= minutes * 60 and epicentral_km(q.lat, q.lon, k.quake.lat, k.quake.lon) <= km:
+            if best is None or k.quake.time > best.quake.time:
+                best = k
+    return best
+
+
+def cluster_note(q: IgcQuake, earlier: IgcQuake) -> str:
+    d = epicentral_km(q.lat, q.lon, earlier.lat, earlier.lon)
+    state = "revisado" if earlier.reviewed else "preliminar"
+    return (f"↪️ El IGC lo publica como un sismo distinto del de las {_clock(earlier.time)} "
+            f"(M{earlier.mag:.1f} {state}, a {d:.0f} km)")
+
+
 def _esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 

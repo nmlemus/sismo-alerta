@@ -93,7 +93,7 @@ The Instituto de Geociencias (IGC) publishes its quakes at https://sismosgeocien
 
 - **Checks cheaply:** it asks IGC whether the page changed (ETag), and only reads it when it did.
 - **Tracks revisions:** it finds new quakes and IGC's revisions (PRELIMINAR → REVISADO, magnitude changes), keeping each quake's id through them.
-- **Alerts on Telegram:** it posts each new quake to a Telegram channel, with the estimated intensity in Panama City and links, and edits that message when IGC revises the quake. By default it covers M3.5 or larger within 400 km of Panama City, arriving silently below M4.0.
+- **Alerts on Telegram:** it posts each new quake to a Telegram channel, with the estimated intensity in Panama City and links, and edits that message when IGC revises the quake, also replying to it (silently) with what changed, so the chat shows which message was updated. A new quake within 10 minutes and 40 km of one already announced is sent as a reply to it, saying IGC lists it as a separate quake. By default it covers M3.5 or larger within 400 km of Panama City, arriving silently below M4.0.
 - **Feeds the page:** it writes a public feed to Cloud Storage that the page reads every minute (`IGC_FEED` in `web/js/config.js`). IGC quakes count as confirmed, show up before EMSC has them, and are merged with EMSC's version once it arrives.
 
 It scales to zero between ticks and stays within the free tiers of Cloud Run, Cloud Scheduler and Cloud Storage (the project must be on the Blaze plan). It identifies itself to IGC in its User-Agent.

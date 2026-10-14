@@ -84,8 +84,9 @@ class FakeTelegram:
     def __init__(self):
         self.sent, self.edits = [], []
 
-    async def send(self, text, silent=False):
+    async def send(self, text, silent=False, reply_to=None):
         self.sent.append((text, silent))
+        self.replies = getattr(self, 'replies', []) + [reply_to]
         return len(self.sent)
 
     async def edit(self, message_id, text):
@@ -137,6 +138,16 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
             (now - timedelta(hours=2), 7.6, -80.7, 4.0, True)])
         fourth = await monitor_main.tick(app)
         assert fourth["edited"] == 1 and tg.edits[0][0] == 1 and "M4.8" in tg.edits[0][1] and "revisado" in tg.edits[0][1]
+        # ...and a silent reply to the original says what changed
+        assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>: M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
+        # a new quake 3 minutes later and 10 km away replies to that message
+        pages["etag"], pages["body"] = '"v4"', _page([
+            (now + timedelta(minutes=1), 7.75, -81.25, 4.1, False),
+            (now - timedelta(minutes=2), 7.7, -81.3, 4.8, True),
+            (now - timedelta(minutes=5), 7.5, -80.6, 3.0, False),
+            (now - timedelta(hours=2), 7.6, -80.7, 4.0, True)])
+        fifth = await monitor_main.tick(app)
+        assert fifth["sent"] == 1 and tg.replies[2] == 1 and "sismo distinto del de las" in tg.sent[2][0] and "M4.8 revisado" in tg.sent[2][0]
         # state and feed are on disk; a cold start picks them up without re-announcing
         assert (tmp_path / "igc" / "latest.json").exists() and (tmp_path / "igc" / "recent.json").exists()
         app2 = monitor_main.make_app()
@@ -161,7 +172,18 @@ async def test_test_message_never_touches_state_or_feed(tmp_path):
     steps = await monitor_main.run_test(app, keep_s=0.01, edit_after_s=0.01)
     assert steps["passes_filters"] and steps["sent_message_id"] == 1 and steps["deleted"]
     assert tg.sent[0][0].startswith("🧪 <b>PRUEBA — no es un sismo real</b>") and "M4.5" in tg.sent[0][0]
-    assert "M4.6" in tg.edits[0][1] and "revisado" in tg.edits[0][1] and tg.deleted == 1
+    assert "M4.6" in tg.edits[0][1] and "revisado" in tg.edits[0][1] and tg.deleted == 1  # the original, deleted last
+    assert tg.sent[1][0].startswith("🧪 ✏️ <b>Revisado por el IGC</b>: M4.5 → <b>M4.6</b>") and tg.replies[1] == 1
     assert not (tmp_path / "igc").exists()  # nothing written: no state, no feed
     for fn in app.on_cleanup:
         await fn(app)
+
+
+def test_revision_note_and_cluster_note():
+    from app.monitor import cluster_note, revision_note
+    q = parse_list(PAGE)[2]  # M5.0 preliminar
+    r = q.__class__(q.time + timedelta(seconds=4), q.lat + 0.05, q.lon, 8.0, 4.8, True, "Localizado en Panamá a 22km al noroeste de Tonosí", q.url)
+    note = revision_note(q, r)
+    assert note.startswith("✏️ <b>Revisado por el IGC</b>: M5.0 → <b>M4.8</b>; ahora Panamá a 22 km al noroeste de Tonosí (se movió 6 km)")
+    assert revision_note(r, r) == "✏️ <b>Actualizado por el IGC</b>: confirmado sin cambios"
+    assert cluster_note(r, q).startswith("↪️ El IGC lo publica como un sismo distinto del de las 12:09 a. m. (M5.0 preliminar, a 6 km)")

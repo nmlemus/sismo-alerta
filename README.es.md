@@ -125,7 +125,7 @@ El Instituto de Geociencias (IGC) publica sus sismos en https://sismosgeociencia
 
 - **Revisa barato:** le pregunta al IGC si la página cambió (ETag), y solo la lee cuando cambió.
 - **Sigue las revisiones:** encuentra los sismos nuevos y las revisiones del IGC (PRELIMINAR → REVISADO, cambios de magnitud), y cada sismo conserva su id a través de ellas.
-- **Avisa por Telegram:** publica cada sismo nuevo en un canal de Telegram, con la intensidad estimada en Ciudad de Panamá y enlaces, y edita ese mensaje cuando el IGC revisa el sismo. Por defecto cubre los M3.5 o más a menos de 400 km de Ciudad de Panamá; por debajo de M4.0 llegan en silencio.
+- **Avisa por Telegram:** publica cada sismo nuevo en un canal de Telegram, con la intensidad estimada en Ciudad de Panamá y enlaces, y edita ese mensaje cuando el IGC revisa el sismo, además de responderle (en silencio) con lo que cambió, para que en el chat se vea qué mensaje se actualizó. Un sismo nuevo a menos de 10 minutos y 40 km de uno ya anunciado se manda como respuesta a ese, aclarando que el IGC lo lista como otro sismo. Por defecto cubre los M3.5 o más a menos de 400 km de Ciudad de Panamá; por debajo de M4.0 llegan en silencio.
 - **Alimenta la página:** escribe un feed público en Cloud Storage que la página lee cada minuto (`IGC_FEED` en `web/js/config.js`). Los sismos del IGC cuentan como confirmados, aparecen antes de que EMSC los tenga y se unen con la versión de EMSC cuando esta llega.
 
 Se apaga entre revisiones y queda dentro de los niveles gratuitos de Cloud Run, Cloud Scheduler y Cloud Storage (el proyecto debe estar en el plan Blaze). Se identifica ante el IGC en su User-Agent.

@@ -34,7 +34,7 @@ import aiohttp
 from aiohttp import web
 
 from .igc import IGC_URL, IgcQuake, parse_list
-from .monitor import Known, feed, merge, message, signature, to_notify
+from .monitor import Known, cluster_note, feed, merge, message, nearby_earlier, revision_note, signature, to_notify
 from .telegram import LogOnly, Telegram
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -156,12 +156,20 @@ async def tick(app: web.Application) -> dict:
             due = to_notify(res.new + [k for k in res.changed if k.message_id is None],
                             min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
             for k in due:
-                k.message_id = await tg.send(message(k.quake, CFG["dashboard"]), silent=k.quake.mag < CFG["loud_mag"])
+                text = message(k.quake, CFG["dashboard"])
+                near = nearby_earlier(k.quake, list(res.known.values()))
+                if near:
+                    text += "\n" + cluster_note(k.quake, near.quake)
+                k.message_id = await tg.send(text, silent=k.quake.mag < CFG["loud_mag"], reply_to=near.message_id if near else None)
                 k.sent_signature = signature(k.quake)
                 sent += 1
             for k in res.changed:
                 if k.message_id and k.sent_signature != signature(k.quake):
+                    before = state.known[k.id].quake
+                    # The original message shows the current data, and a silent reply to it
+                    # says what changed, so the chat keeps the order of what happened.
                     await tg.edit(k.message_id, message(k.quake, CFG["dashboard"]) + "\n✏️ <i>Actualizado por el IGC</i>")
+                    await tg.send(revision_note(before, k.quake), silent=True, reply_to=k.message_id)
                     k.sent_signature = signature(k.quake)
                     edited += 1
         state.known, state.etag = res.known, etag
@@ -204,10 +212,13 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
         await asyncio.sleep(edit_after_s)
         revised = IgcQuake(q.time, q.lat, q.lon, 8.0, round(q.mag + 0.1, 1), True, q.place, q.url)
         await tg.edit(mid, TEST_BANNER + message(revised, CFG["dashboard"]) + "\n✏️ <i>Actualizado por el IGC</i>")
+        steps["reply_message_id"] = await tg.send("🧪 " + revision_note(q, revised), silent=True, reply_to=mid)
         steps["edited"] = True
     if mid is not None and keep_s:
         await asyncio.sleep(keep_s)
-        await tg.delete(mid)
+        for m in (steps.get("reply_message_id"), mid):
+            if m:
+                await tg.delete(m)
         steps["deleted"] = True
     log.info("test %s", steps)
     return steps

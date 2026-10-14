@@ -24,11 +24,15 @@ class Telegram:
                     raise RuntimeError(f"Telegram {method}: {body.get('description')}")
             return body.get("result") or {}
 
-    async def send(self, text: str, silent: bool = False) -> int | None:
-        res = await self._call("sendMessage", {
+    async def send(self, text: str, silent: bool = False, reply_to: int | None = None) -> int | None:
+        payload = {
             "chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
             "disable_web_page_preview": True, "disable_notification": silent,
-        })
+        }
+        if reply_to:
+            # Quotes the earlier message, so the chat shows which quake this is about.
+            payload["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
+        res = await self._call("sendMessage", payload)
         return res.get("message_id")
 
     async def edit(self, message_id: int, text: str) -> None:
@@ -44,8 +48,9 @@ class Telegram:
 class LogOnly:
     """Stand-in when no bot is configured: logs what it would have sent."""
 
-    async def send(self, text: str, silent: bool = False) -> int | None:
-        log.info("[telegram off] %s%s", "(silent) " if silent else "", text.replace("\n", " | "))
+    async def send(self, text: str, silent: bool = False, reply_to: int | None = None) -> int | None:
+        log.info("[telegram off] %s%s%s", "(silent) " if silent else "", f"(reply to {reply_to}) " if reply_to else "",
+                 text.replace("\n", " | "))
         return None
 
     async def edit(self, message_id: int, text: str) -> None:
