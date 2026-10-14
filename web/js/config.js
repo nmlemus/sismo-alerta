@@ -80,7 +80,7 @@ export const IGC_FEED = { base: 'https://storage.googleapis.com/sismo-alerta-235
 
 // Visit statistics (countries, cities, where people come from). Paste the Google
 // Analytics 4 measurement ID ("G-…") of the Firebase project here; empty = off.
-export const ANALYTICS = { measurementId: '' };
+export const ANALYTICS = { measurementId: 'G-VJL4JJSVCB' };
 
 // Events this recent (relative to the moment shown) get a ring on the map.
 export const RECENT_HOURS = 6;

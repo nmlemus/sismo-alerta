@@ -83,6 +83,8 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
     return emscRoute(route);
   });
   await page.route(/sismo-alerta-235ca-sismo-feed/, (route) => route.fulfill({ contentType: 'application/json', body: '{"events":[]}' }));
+  // Google Analytics is on in the real config: answer it locally so tests never send hits
+  await page.route(/googletagmanager\.com|google-analytics\.com/, (route) => route.fulfill({ contentType: 'text/javascript', body: '' }));
   const tileZooms = [];
   await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com/, (route) => {
     const z = /\/(\d+)\/\d+\/\d+(@2x)?\.png/.exec(route.request().url());
@@ -308,7 +310,7 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   let gtagLoaded = false;
   await page.route(/js\/config\.js$/, async (route) => {
-    const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8').replace("measurementId: ''", "measurementId: 'G-TEST1234'");
+    const body = readFileSync(join(ROOT, 'js/config.js'), 'utf8').replace(/measurementId: '[^']*'/, "measurementId: 'G-TEST1234'");
     await route.fulfill({ contentType: 'text/javascript', body, headers: { 'content-security-policy': CSP } });
   });
   await page.route(/data\/excluded\.json/, (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events: [{ id: EXCLUDE, es: 'prueba', en: 'test' }] }) }));
@@ -357,6 +359,7 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events }) });
   });
   await page.route(/seismicportal\.eu\/fdsnws/, emscRoute);
+  await page.route(/googletagmanager\.com|google-analytics\.com/, (route) => route.fulfill({ contentType: 'text/javascript', body: '' }));
   await page.route(/tile\.openstreetmap\.org|earthquake\.usgs\.gov/, (route) => route.abort());
   await page.routeWebSocket(/seismicportal\.eu/, () => {});
   await page.goto(base);
