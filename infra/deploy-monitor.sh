@@ -27,6 +27,15 @@ echo "==> APIs"
 $G services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   cloudscheduler.googleapis.com storage.googleapis.com secretmanager.googleapis.com iam.googleapis.com
 
+echo "==> Build permissions"
+# New projects no longer give the default build account access to the uploaded
+# source ("Build failed because the default service account is missing required
+# IAM permissions"). Grant it the Cloud Build builder role once.
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')
+gcloud projects add-iam-policy-binding "$PROJECT_ID" --quiet --condition=None \
+  --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role roles/cloudbuild.builds.builder >/dev/null
+
 echo "==> Service accounts"
 $G iam service-accounts describe "$SA" >/dev/null 2>&1 || $G iam service-accounts create "$SERVICE" --display-name "IGC monitor"
 $G iam service-accounts describe "$SCHED_SA" >/dev/null 2>&1 || $G iam service-accounts create sismo-scheduler --display-name "Wakes the IGC monitor"

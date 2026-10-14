@@ -17,6 +17,15 @@ echo "==> Enabling APIs"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   firestore.googleapis.com fcm.googleapis.com --project "$PROJECT_ID"
 
+echo "==> Build permissions"
+# New projects no longer give the default build account access to the uploaded
+# source ("Build failed because the default service account is missing required
+# IAM permissions"). Grant it the Cloud Build builder role once.
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')
+gcloud projects add-iam-policy-binding "$PROJECT_ID" --quiet --condition=None \
+  --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role roles/cloudbuild.builds.builder >/dev/null
+
 echo "==> Service account $SA"
 gcloud iam service-accounts describe "$SA" --project "$PROJECT_ID" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "$SERVICE" --display-name "Sismo Alerta ingestor" --project "$PROJECT_ID"
