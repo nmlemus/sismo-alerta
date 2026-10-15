@@ -18,13 +18,13 @@
       <div class="headrow">
         <div class="status" id="live" data-kind="warn"><span class="dot" aria-hidden="true"></span><span id="live-text">Cargando…</span><span class="synced" id="synced"></span></div>
         <span class="headtools">
-        <a class="btn tg" id="tg-cta" href="#" target="_blank" rel="noopener" hidden data-i18n="tg.cta">Avisos en Telegram</a>
-        <span class="seg theme" role="group" aria-label="Tema" data-i18n-attr="aria-label:theme.group">
-          <button type="button" class="btn" data-theme-btn="auto" aria-pressed="true" aria-label="Tema automático, como el sistema" data-i18n-attr="aria-label:theme.auto;title:theme.auto" title="Tema automático, como el sistema">◐</button>
-          <button type="button" class="btn" data-theme-btn="light" aria-pressed="false" aria-label="Tema claro" data-i18n-attr="aria-label:theme.light;title:theme.light" title="Tema claro">☀</button>
-          <button type="button" class="btn" data-theme-btn="dark" aria-pressed="false" aria-label="Tema oscuro" data-i18n-attr="aria-label:theme.dark;title:theme.dark" title="Tema oscuro">☾</button>
+        <a class="btn tg" id="tg-cta" href="#" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg><span data-i18n="tg.cta">Avisos en Telegram</span></a>
+        <span class="seg compact theme" role="group" aria-label="Tema" data-i18n-attr="aria-label:theme.group">
+          <button type="button" class="btn" data-theme-btn="auto" aria-pressed="true" aria-label="Tema automático, como el sistema" data-i18n-attr="aria-label:theme.auto;title:theme.auto" title="Tema automático, como el sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zm1-17.93c3.94.49 7 3.86 7 7.93s-3.06 7.44-7 7.93V4.07z"/></svg></button>
+          <button type="button" class="btn" data-theme-btn="light" aria-pressed="false" aria-label="Tema claro" data-i18n-attr="aria-label:theme.light;title:theme.light" title="Tema claro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg></button>
+          <button type="button" class="btn" data-theme-btn="dark" aria-pressed="false" aria-label="Tema oscuro" data-i18n-attr="aria-label:theme.dark;title:theme.dark" title="Tema oscuro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg></button>
         </span>
-        <span class="seg lang" role="group" aria-label="Idioma / Language" data-i18n-attr="aria-label:lang.group">
+        <span class="seg compact lang" role="group" aria-label="Idioma / Language" data-i18n-attr="aria-label:lang.group">
           <button type="button" class="btn" data-lang="es" lang="es" aria-label="Español" aria-pressed="true">ES</button>
           <button type="button" class="btn" data-lang="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
         </span>
@@ -52,7 +52,7 @@
             <div><dt data-i18n="hero.src">Publicado por</dt><dd id="hero-src"></dd></div>
           </dl>
           <p class="hero-felt"><span class="badge sm" id="hero-mmi"></span><span id="hero-felt"></span>
-            <button type="button" class="btn" id="hero-locate" data-i18n="hero.locate">Calcular para mi ubicación</button></p>
+            <button type="button" class="btn" id="hero-locate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span data-i18n="hero.locate">Calcular para mi ubicación</span></button></p>
         </div>
       </div>
       <div class="hero-wave">
@@ -61,10 +61,10 @@
         <p class="note" data-i18n="hero.waveNote">Tiempo de la onda S, la que más sacude, a unos 3,5 km por segundo. Que llegue no quiere decir que se sienta: eso depende de la magnitud y la distancia.</p>
       </div>
       <div class="hero-actions">
-        <button type="button" class="btn primary" id="hero-map" data-i18n="hero.map">Ver en el mapa</button>
-        <a class="btn" id="hero-wa" href="#" target="_blank" rel="noopener" data-i18n="hero.wa">Compartir por WhatsApp</a>
-        <button type="button" class="btn" id="hero-share" hidden data-i18n="hero.share">Compartir</button>
-        <button type="button" class="btn" id="alarm" aria-pressed="false" data-i18n="alarm.off" data-i18n-attr="title:alarm.title" title="">Activar alarma sonora</button>
+        <button type="button" class="btn primary" id="hero-map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg><span data-i18n="hero.map">Ver en el mapa</span></button>
+        <a class="btn" id="hero-wa" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span data-i18n="hero.wa">Compartir por WhatsApp</span></a>
+        <button type="button" class="btn" id="hero-share" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg><span data-i18n="hero.share">Compartir</span></button>
+        <button type="button" class="btn toggle" id="alarm" aria-pressed="false" data-i18n-attr="title:alarm.title" title=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span data-i18n="alarm.off">Activar alarma sonora</span></button>
       </div>
     </section>
 
@@ -147,7 +147,7 @@
           <button type="button" class="btn" data-base="streets" aria-pressed="true" data-i18n="map.streets">Mapa</button>
           <button type="button" class="btn" data-base="satellite" aria-pressed="false" data-i18n="map.satellite">Satélite</button>
         </span>
-        <button type="button" class="btn" id="map-plates" aria-pressed="true" data-i18n="map.plates">Placas tectónicas</button>
+        <button type="button" class="btn toggle" id="map-plates" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg><span data-i18n="map.plates">Placas tectónicas</span></button>
       </div>
       <div class="legend" id="map-legend"></div>
       <details class="unconfirmed muted" id="unconfirmed-note" hidden></details>
@@ -236,7 +236,7 @@
       <div class="tablehead">
         <h2 data-i18n="table.h2">Todos los sismos</h2>
         <span class="muted" id="events-count"></span>
-        <button type="button" class="btn" id="csv" data-i18n="csv">Descargar CSV</button>
+        <button type="button" class="btn" id="csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span data-i18n="csv">Descargar CSV</span></button>
       </div>
       <input type="search" class="search" id="events-search" placeholder="Buscar por lugar, fecha, magnitud o agencia" aria-label="Buscar sismos" data-i18n-attr="placeholder:search.ph;aria-label:search.aria">
       <div class="tablebox">

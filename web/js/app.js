@@ -696,8 +696,9 @@ function locateMe() {
   setText('#ref-note', t('ref.locating'));
   const btn = $('#hero-locate');
   btn.disabled = true;
-  btn.textContent = t('hero.locating');
-  const done = () => { btn.disabled = false; btn.textContent = t('hero.locate'); };
+  const label = btn.querySelector('span');
+  label.textContent = t('hero.locating');
+  const done = () => { btn.disabled = false; label.textContent = t('hero.locate'); };
   navigator.geolocation.getCurrentPosition((pos) => {
     const lat = pos.coords.latitude, lon = pos.coords.longitude;
     // Use the Panama City calibration inside the metro area; the plain model elsewhere.
@@ -718,8 +719,9 @@ function setupAlarm() {
   const btn = $('#alarm');
   const sync = () => {
     btn.setAttribute('aria-pressed', String(alarm.on));
-    btn.dataset.i18n = alarm.on ? 'alarm.on' : 'alarm.off';
-    btn.textContent = t(btn.dataset.i18n);
+    const label = btn.querySelector('span');
+    label.dataset.i18n = alarm.on ? 'alarm.on' : 'alarm.off';
+    label.textContent = t(label.dataset.i18n);
   };
   btn.addEventListener('click', async () => { await alarm.toggle(); track('alarm', { on: alarm.on }); sync(); });
   sync();
