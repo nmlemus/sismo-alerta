@@ -10,6 +10,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 17h6l3-9 5 18 4-14 3 5h7' fill='none' stroke='%232a78d6' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="vendor/leaflet/leaflet-1.9.4.css">
   <link rel="stylesheet" href="css/app.css">
+  <script src="js/theme-boot.js"></script>
 </head>
 <body>
   <main class="page">
@@ -18,6 +19,11 @@
         <div class="status" id="live" data-kind="warn"><span class="dot" aria-hidden="true"></span><span id="live-text">Cargando…</span><span class="synced" id="synced"></span></div>
         <span class="headtools">
         <a class="btn tg" id="tg-cta" href="#" target="_blank" rel="noopener" hidden data-i18n="tg.cta">Avisos en Telegram</a>
+        <span class="seg theme" role="group" aria-label="Tema" data-i18n-attr="aria-label:theme.group">
+          <button type="button" class="btn" data-theme-btn="auto" aria-pressed="true" aria-label="Tema automático, como el sistema" data-i18n-attr="aria-label:theme.auto;title:theme.auto" title="Tema automático, como el sistema">◐</button>
+          <button type="button" class="btn" data-theme-btn="light" aria-pressed="false" aria-label="Tema claro" data-i18n-attr="aria-label:theme.light;title:theme.light" title="Tema claro">☀</button>
+          <button type="button" class="btn" data-theme-btn="dark" aria-pressed="false" aria-label="Tema oscuro" data-i18n-attr="aria-label:theme.dark;title:theme.dark" title="Tema oscuro">☾</button>
+        </span>
         <span class="seg lang" role="group" aria-label="Idioma / Language" data-i18n-attr="aria-label:lang.group">
           <button type="button" class="btn" data-lang="es" lang="es" aria-label="Español" aria-pressed="true">ES</button>
           <button type="button" class="btn" data-lang="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
@@ -58,6 +64,7 @@
         <button type="button" class="btn primary" id="hero-map" data-i18n="hero.map">Ver en el mapa</button>
         <a class="btn" id="hero-wa" href="#" target="_blank" rel="noopener" data-i18n="hero.wa">Compartir por WhatsApp</a>
         <button type="button" class="btn" id="hero-share" hidden data-i18n="hero.share">Compartir</button>
+        <button type="button" class="btn" id="alarm" aria-pressed="false" data-i18n="alarm.off" data-i18n-attr="title:alarm.title" title="">Activar alarma sonora</button>
       </div>
     </section>
 
@@ -134,6 +141,14 @@
         </span>
       </div>
       <div id="map" class="map" role="region" aria-label="Mapa de epicentros" data-i18n-attr="aria-label:map.aria"></div>
+      <div class="maplayers">
+        <span class="flabel" data-i18n="map.base">Fondo</span>
+        <span class="seg" role="group" aria-label="Fondo del mapa" data-i18n-attr="aria-label:map.base">
+          <button type="button" class="btn" data-base="streets" aria-pressed="true" data-i18n="map.streets">Mapa</button>
+          <button type="button" class="btn" data-base="satellite" aria-pressed="false" data-i18n="map.satellite">Satélite</button>
+        </span>
+        <button type="button" class="btn" id="map-plates" aria-pressed="true" data-i18n="map.plates">Placas tectónicas</button>
+      </div>
       <div class="legend" id="map-legend"></div>
       <details class="unconfirmed muted" id="unconfirmed-note" hidden></details>
     </section>
@@ -143,6 +158,18 @@
       <p class="note" data-i18n="tl.note">Cada punto es un sismo, con tamaño según su magnitud, en hora de Panamá (UTC−5). El punto rojo es el sismo principal; el color de los demás indica el día. Pasa el cursor para ver los detalles y haz clic para abrir la ficha del sismo en EMSC.</p>
       <div class="chart skeleton" id="chart-timeline"></div>
       <div class="legend" id="legend-timeline"></div>
+    </section>
+
+    <section class="card" id="depth-card">
+      <div class="refhead">
+        <h2 data-i18n="depth.h2">A qué profundidad ocurren</h2>
+        <span class="seg" role="group" aria-label="Dirección del corte" data-i18n-attr="aria-label:depth.dirAria">
+          <button type="button" class="btn" data-depth-axis="we" aria-pressed="true" data-i18n="depth.we">Oeste → este</button>
+          <button type="button" class="btn" data-depth-axis="sn" aria-pressed="false" data-i18n="depth.sn">Sur → norte</button>
+        </span>
+      </div>
+      <p class="note"><span data-i18n="depth.note">Cada sismo visto de lado, como si se cortara la tierra: arriba la superficie, abajo más profundo. Los pueblos marcan la posición de referencia. Mismo tamaño y colores que en el mapa; haz clic en un sismo para ver su ficha.</span> <span id="depth-fixed"></span></p>
+      <div class="chart skeleton" id="chart-depth"></div>
     </section>
 
     <section class="card" id="rate-card">

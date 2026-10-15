@@ -21,5 +21,16 @@ export function dayPalette(days) {
 
 export function onThemeChange(fn) {
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
-  mq.addEventListener?.('change', fn);
+  mq.addEventListener?.('change', () => { if (themeMode() === 'auto') fn(); });
+  document.addEventListener('themechange', fn);
+}
+
+/** 'auto' (follow the system), 'light' or 'dark'. */
+export const themeMode = () => document.documentElement.dataset.theme || 'auto';
+
+export function setTheme(mode) {
+  const root = document.documentElement;
+  if (mode === 'light' || mode === 'dark') root.dataset.theme = mode; else delete root.dataset.theme;
+  try { if (mode === 'auto') localStorage.removeItem('sismo-theme'); else localStorage.setItem('sismo-theme', mode); } catch { /* storage off */ }
+  document.dispatchEvent(new Event('themechange'));
 }

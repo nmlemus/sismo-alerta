@@ -462,3 +462,68 @@ export function mmiLegend(el, from = 1, to = 8) {
   }
 }
 
+
+/**
+ * Depth section: every earthquake seen from the side, as if the ground were cut along
+ * a line. axis 'we' puts west on the left (by longitude); 'sn' puts south on the left
+ * (by latitude). Depth grows downward. Towns along that direction mark the axis.
+ * The vertical scale is exaggerated (the zone is ~300 km long and ~40 km deep).
+ */
+export function drawDepth(el, { seq, main, pre, showPre, dayIndex, palette, mainIn = true, axis = 'we', places, box }) {
+  const { svg, W, H } = newSvg(el, 300);
+  const all = [...(showPre ? pre : []), ...(mainIn ? [main] : []), ...seq];
+  const m = { l: textWidth(svg, '60 km', 'tick') + 14, r: 14, t: 26, b: 34 };
+  if (!all.length) {
+    svg.append('text').attr('class', 'label').attr('x', W / 2).attr('y', H / 2).attr('text-anchor', 'middle').text(t('f.empty'));
+    return { fixed: 0, total: 0 };
+  }
+  const pos = axis === 'we' ? (d) => d.lon : (d) => d.lat;
+  const vals = all.map(pos);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max(0.05, (hi - lo) * 0.04);
+  const x = d3.scaleLinear([lo - pad, hi + pad], [m.l, W - m.r]);
+  // Scale to where most of them are; the few much deeper ones sit on the bottom edge
+  // as hollow rings (their real depth is in the tooltip).
+  const depths = all.map((d) => d.depth).sort((a, b) => a - b);
+  const deep = depths[Math.min(depths.length - 1, Math.floor(depths.length * 0.95))] || 30;
+  const maxDepth = Math.max(30, Math.ceil((deep + 8) / 10) * 10);
+  const y = d3.scaleLinear([0, maxDepth], [m.t, H - m.b]);
+  const step = maxDepth > 60 ? 20 : 10;
+  const clipped = all.filter((d) => d.depth > maxDepth).length;
+  yAxis(svg, y, Array.from({ length: Math.floor(maxDepth / step) + 1 }, (_, i) => i * step), m.l, W - m.r,
+    (v) => (v === maxDepth && clipped ? `≥${v} km` : `${v} km`));
+  // Towns along the axis, as reference marks on top (skip ones that would overlap).
+  // only towns inside the area, so a section along the south coast isn't marked with Caribbean towns
+  const inside = (p) => !box || (axis === 'we' ? p.lat >= box.minLat && p.lat <= box.maxLat : p.lon >= box.minLon && p.lon <= box.maxLon);
+  const marks = (places || []).filter(inside).map((p) => ({ name: localName(p), v: axis === 'we' ? p.lon : p.lat }))
+    .filter((p) => p.v >= x.domain()[0] && p.v <= x.domain()[1]).sort((a, b) => a.v - b.v);
+  let lastRight = -Infinity;
+  for (const p of marks) {
+    const px = x(p.v), w = textWidth(svg, p.name, 'tick');
+    if (px - w / 2 < lastRight + 8 || px - w / 2 < m.l - 4 || px + w / 2 > W) continue;
+    lastRight = px + w / 2;
+    svg.append('line').attr('class', 'grid').attr('x1', px).attr('x2', px).attr('y1', m.t - 4).attr('y2', H - m.b);
+    svg.append('text').attr('class', 'tick').attr('x', px).attr('y', m.t - 10).attr('text-anchor', 'middle').text(p.name);
+  }
+  const ends = axis === 'we' ? [t('depth.west'), t('depth.east')] : [t('depth.south'), t('depth.north')];
+  svg.append('text').attr('class', 'label strong').attr('x', m.l).attr('y', H - m.b + 22).text(`← ${ends[0]}`);
+  svg.append('text').attr('class', 'label strong').attr('x', W - m.r).attr('y', H - m.b + 22).attr('text-anchor', 'end').text(`${ends[1]} →`);
+  // Vertical exaggeration: km per pixel across vs. down.
+  const kmPerDeg = axis === 'we' ? 111.32 * Math.cos((main.lat * Math.PI) / 180) : 110.6;
+  const ex = (((x.domain()[1] - x.domain()[0]) * kmPerDeg) / (x.range()[1] - x.range()[0])) / (maxDepth / (H - m.b - m.t));
+  if (ex > 1.5) svg.append('text').attr('class', 'tick').attr('x', (m.l + W - m.r) / 2).attr('y', H - m.b + 22).attr('text-anchor', 'middle').text(t('depth.exag', Math.round(ex)));
+  const colorOf = (d) => (d === main ? token('--main') : d.t < main.t ? token('--pre') : palette.colorOf(dayIndex(d)));
+  const sorted = [...all].sort((a, b) => b.mag - a.mag); // small ones on top
+  svg.append('g').selectAll('circle').data(sorted).join('circle')
+    .attr('class', (d) => (d === main ? 'dot main' : d.depth > maxDepth ? 'dot clipped' : 'dot day'))
+    .attr('cx', (d) => x(pos(d))).attr('cy', (d) => y(Math.min(d.depth, maxDepth))).attr('r', (d) => radiusFor(d.mag))
+    .attr('fill', (d) => (d.depth > maxDepth && d !== main ? 'none' : colorOf(d)))
+    .attr('stroke', (d) => (d.depth > maxDepth && d !== main ? colorOf(d) : null));
+  if (mainIn) {
+    svg.append('text').attr('class', 'label strong').attr('x', x(pos(main)) + radiusFor(main.mag) + 6).attr('y', y(Math.min(main.depth, maxDepth))).attr('dy', '0.32em')
+      .text(t('tl.mainLbl', fmtMag(main.mag)));
+  }
+  nearestHover(el, svg, all.map((d) => ({ d, x: x(pos(d)), y: y(Math.min(d.depth, maxDepth)), r: radiusFor(d.mag) })),
+    (d) => [fmtTime(d.t), t('depth.tip', fmtMag(d.mag), d.depth), d.place], emscLink);
+  return { fixed: all.filter((d) => d.depth === 10).length, total: all.length, clipped, maxDepth };
+}

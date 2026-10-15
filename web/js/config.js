@@ -74,12 +74,37 @@ export const VIEWS = {
 // https://carto.com/basemaps/apikey (non-commercial: 5M tiles/month) and paste it here.
 export const TILES = { cartoKey: '' };
 
+// Satellite view: Sentinel-2 cloudless by EOX (free with attribution for non-commercial use,
+// CC BY-NC-SA 4.0). Empty: no satellite option.
+export const SATELLITE = {
+  url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg',
+  attribution: '<a href="https://s2maps.eu" rel="noopener">Sentinel-2 cloudless</a> by EOX IT Services GmbH (Copernicus Sentinel data 2020)',
+  maxNativeZoom: 14,
+};
+
+// Plate boundaries drawn on the map (data/plates.json, cut to the region from PB2002).
+// Labels go where each plate is, roughly.
+export const PLATES = {
+  file: 'data/plates.json',
+  attribution: 'Placas: Bird (2003), PB2002; datos de Hugo Ahlenius, Nordpil',
+  labels: [
+    { id: 'CO', lat: 6.2, lon: -86.2 },
+    { id: 'NZ', lat: 4.2, lon: -80.6 },
+    { id: 'CA', lat: 11.3, lon: -80.4 },
+    { id: 'PM', lat: 9.15, lon: -81.55 },
+    { id: 'ND', lat: 6.6, lon: -75.6 },
+  ],
+};
+
 // Feed written by the IGC monitor (infra/deploy-monitor.sh prints it), e.g.
 // 'https://storage.googleapis.com/<bucket>/igc/'. Empty: the page uses EMSC only.
 export const IGC_FEED = { base: 'https://storage.googleapis.com/sismo-alerta-235ca-sismo-feed/igc/', pollSeconds: 60 };
 
 // Public Telegram channel the IGC monitor posts to (without @). Empty: no link on the page.
 export const TELEGRAM = { channel: 'sismos_panama_live' };
+
+// Optional sound alarm on the page (the visitor turns it on): new earthquakes from this magnitude.
+export const ALARM = { minMag: 4.0 };
 
 // Visit statistics (countries, cities, where people come from). Paste the Google
 // Analytics 4 measurement ID ("G-…") of the Firebase project here; empty = off.

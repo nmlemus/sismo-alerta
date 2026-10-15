@@ -86,6 +86,8 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   // Google Analytics is on in the real config: answer it locally so tests never send hits
   await page.route(/googletagmanager\.com|google-analytics\.com/, (route) => route.fulfill({ contentType: 'text/javascript', body: '' }));
   const tileZooms = [];
+  const satTiles = [];
+  await page.route(/tiles\.maps\.eox\.at/, (route) => { satTiles.push(route.request().url()); return route.fulfill({ contentType: 'image/png', body: PNG }); });
   await page.route(/tile\.openstreetmap\.org|basemaps\.cartocdn\.com/, (route) => {
     const z = /\/(\d+)\/\d+\/\d+(@2x)?\.png/.exec(route.request().url());
     if (z) tileZooms.push(Number(z[1]));
@@ -148,6 +150,43 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.getAttribute('#tg-cta', 'href')) === 'https://t.me/sismos_panama_live', `${vp.name}: Telegram channel link`);
   check((await page.locator('#map path.latest-ring').count()) === 1, `${vp.name}: latest earthquake rings on the map`);
   check(/EMSC: en vivo/.test(await page.textContent('#sources')) && /USGS: al día/.test(await page.textContent('#sources')), `${vp.name}: sources strip (${await page.textContent('#sources')})`);
+  // depth section
+  check((await page.locator('#chart-depth circle.dot').count()) === 306, `${vp.name}: depth section draws every event (${await page.locator('#chart-depth circle.dot').count()})`);
+  check(/oeste/.test(await page.textContent('#chart-depth')), `${vp.name}: depth section labelled west to east`);
+  await page.click('[data-depth-axis="sn"]');
+  await page.waitForTimeout(300);
+  check(/norte/.test(await page.textContent('#chart-depth')) && (await page.locator('#chart-depth circle.dot').count()) === 306, `${vp.name}: depth section south to north`);
+  await page.click('[data-depth-axis="we"]');
+  // plate boundaries (on by default) and satellite
+  await page.waitForSelector('#map .leaflet-plates-pane path', { timeout: 4000 }).catch(() => {});
+  check((await page.locator('#map .leaflet-plates-pane path').count()) >= 10, `${vp.name}: plate boundaries drawn (${await page.locator('#map .leaflet-plates-pane path').count()})`);
+  check(/Subducción/.test(await page.textContent('#map-legend')) && /Microplaca de Panamá|Placa de Cocos/.test(await page.textContent('#map')), `${vp.name}: plate legend and labels`);
+  await page.click('#map-plates');
+  await page.waitForTimeout(200);
+  check((await page.locator('#map .leaflet-plates-pane path').count()) === 0 && !/Subducción/.test(await page.textContent('#map-legend')), `${vp.name}: plates can be turned off`);
+  await page.click('#map-plates');
+  await page.click('[data-base="satellite"]');
+  await page.waitForTimeout(500);
+  check((await page.getAttribute('#map', 'data-base')) === 'satellite' && satTiles.length > 0, `${vp.name}: satellite view loads its tiles (${satTiles.length})`);
+  await page.click('[data-base="streets"]');
+  // theme
+  await page.click('[data-theme-btn="dark"]');
+  await page.waitForTimeout(200);
+  if (OUT) {
+    for (const id of ['hero', 'map-card', 'depth-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
+  }
+  check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(13, 13, 13)'), `${vp.name}: dark theme on demand`);
+  await page.click('[data-theme-btn="light"]');
+  await page.waitForTimeout(200);
+  if (OUT) {
+    for (const id of ['map-card', 'depth-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
+  }
+  check(await page.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgb(249, 249, 247)'), `${vp.name}: light theme on demand`);
+  await page.click('[data-theme-btn="auto"]');
+  check(await page.evaluate(() => !document.documentElement.dataset.theme), `${vp.name}: back to the system theme`);
+  // sound alarm
+  await page.click('#alarm');
+  check((await page.getAttribute('#alarm', 'aria-pressed')) === 'true' && (await page.textContent('#alarm')) === 'Alarma sonora activada', `${vp.name}: sound alarm turns on`);
   await page.click('#hero-map');
   await page.waitForSelector('#map .leaflet-popup', { timeout: 4000 }).catch(() => {});
   check((await page.locator('#map .leaflet-popup').count()) === 1, `${vp.name}: "show on the map" opens its card on the map`);

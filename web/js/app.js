@@ -1,10 +1,11 @@
 // Page logic: loads the catalog, keeps it live, derives the sequence and redraws.
 
-import { EMSC, IGC_FEED, PLACES, REFERENCES, SEQUENCE, TELEGRAM } from './config.js';
+import { ALARM, EMSC, IGC_FEED, PLACES, REFERENCES, SEQUENCE, TELEGRAM } from './config.js';
+import { Alarm } from './alarm.js';
 import { LiveFeed, emscLink, fetchEvent, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
-import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
+import { dayLegend, drawDepth, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
@@ -12,10 +13,11 @@ import { fetchIgcFeed, igcChannel, igcOn, igcOnly, sameQuake } from './igc.js';
 import { playWave, renderHero, shareUrl } from './hero.js';
 import { analyticsOn, track } from './analytics.js';
 import { fetchUsgs } from './usgs.js';
-import { dayPalette, onThemeChange } from './theme.js';
+import { dayPalette, onThemeChange, setTheme, themeMode } from './theme.js';
 import { applyStatic, lang, localName, setLang, t, tOr } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
+const alarm = new Alarm(ALARM);
 const H = 3600e3;
 // Load the week before too, so it can be shown on demand.
 const LOAD_START = new Date(Date.parse(SEQUENCE.start) - SEQUENCE.preDays * 24 * H);
@@ -40,6 +42,7 @@ const state = {
   period: 'todo', // pre | todo | hoy | 24h | 6h
   minMag: 0, // 0 = all
   showPre: false,
+  depthAxis: 'we', // depth section: west→east or south→north
   igcStatus: null, // the monitor's sources (recent.json)
   usgsAt: null,
   heroId: null, // latest earthquake shown in the hero
@@ -88,6 +91,7 @@ function announce(ev) {
   toast(ev);
   map.flash(ev);
   state.heroNew = ev.id;
+  if (alarm.ring(ev, { title: t('alarm.notify', fmtMag(ev.mag)), body: `${ev.place} · ${fmtTime(ev.t)}` })) track('alarm_rang', { mag: ev.mag });
 }
 
 /** Live events that aren't the national network's: fetch all solutions to decide. */
@@ -362,6 +366,11 @@ function render() {
   const windowed = ['hoy', '24h', '6h'].includes(state.period);
   const view = { ...opts, seq: seqV, pre: preV, rows: rowsV, mainIn, big: s.big, from: windowed ? new Date(fromT) : null };
   chart('#chart-timeline', drawTimeline, view);
+  const depthNode = $('#chart-depth');
+  depthNode.classList.remove('skeleton');
+  const dep = drawDepth(depthNode, { ...view, axis: state.depthAxis, places: PLACES, box: areaBox() });
+  setText('#depth-fixed', [dep.fixed ? t('depth.fixed', fmtInt(dep.fixed), fmtInt(dep.total)) : '',
+    dep.clipped ? t('depth.clipped', fmtInt(dep.clipped), dep.maxDepth) : ''].filter(Boolean).join(' '));
   dayLegend($('#legend-timeline'), opts);
   const filtered = state.period !== 'todo' || state.minMag > 0;
   setText('#area-note', state.area === 'zona' ? '' : t('f.areaNote', t('f.areaDesc')[state.area]));
@@ -705,6 +714,30 @@ function locateMe() {
   }, { maximumAge: 600000, timeout: 15000 });
 }
 
+function setupAlarm() {
+  const btn = $('#alarm');
+  const sync = () => {
+    btn.setAttribute('aria-pressed', String(alarm.on));
+    btn.dataset.i18n = alarm.on ? 'alarm.on' : 'alarm.off';
+    btn.textContent = t(btn.dataset.i18n);
+  };
+  btn.addEventListener('click', async () => { await alarm.toggle(); track('alarm', { on: alarm.on }); sync(); });
+  sync();
+}
+
+function setupTheme() {
+  const btns = [...document.querySelectorAll('[data-theme-btn]')];
+  const sync = () => {
+    btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeBtn === themeMode())));
+    // the browser bar follows the page
+    const dark = themeMode() === 'dark' || (themeMode() === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.querySelectorAll('meta[name=theme-color]').forEach((m) => { m.content = dark ? '#0d0d0d' : '#f9f9f7'; m.removeAttribute('media'); });
+  };
+  btns.forEach((b) => b.addEventListener('click', () => { setTheme(b.dataset.themeBtn); track('theme', { value: b.dataset.themeBtn }); sync(); }));
+  onThemeChange(sync);
+  sync();
+}
+
 function setupHero() {
   $('#hero-locate').addEventListener('click', () => { track('locate', { from: 'hero' }); locateMe(); });
   $('#hero-map').addEventListener('click', () => {
@@ -803,6 +836,15 @@ function setupFilters() {
   sync();
 }
 
+function setupDepth() {
+  document.querySelectorAll('[data-depth-axis]').forEach((b) => b.addEventListener('click', () => {
+    state.depthAxis = b.dataset.depthAxis;
+    document.querySelectorAll('[data-depth-axis]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    track('depth_axis', { value: state.depthAxis });
+    scheduleRender();
+  }));
+}
+
 function setupTable() {
   $('#events-search').addEventListener('input', (e) => { state.search = e.target.value; scheduleRender(); });
   $('#csv').addEventListener('click', downloadCsv);
@@ -828,6 +870,9 @@ map.relabel();
 setupLanguage();
 setupReference();
 setupHero();
+setupTheme();
+setupAlarm();
+setupDepth();
 setupFilters();
 setupTable();
 renderStatus();

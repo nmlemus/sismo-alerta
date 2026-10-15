@@ -3,7 +3,7 @@
 // marks the last RECENT_HOURS before the moment shown. With the week before turned
 // on, the slider also covers the days before the mainshock (negative time).
 
-import { PLACES, PLAY_SECONDS, RECENT_HOURS, SEQUENCE, TILES, VIEWS } from './config.js';
+import { PLACES, PLATES, PLAY_SECONDS, RECENT_HOURS, SATELLITE, SEQUENCE, TILES, VIEWS } from './config.js';
 import { fmtInt, fmtMag, fmtTime } from './format.js';
 import { radiusFor } from './charts.js';
 import { dayPalette, token } from './theme.js';
@@ -37,6 +37,20 @@ function quakeCard(ev, note, withLink) {
 }
 
 const note = (kind) => (kind === 'seq' ? '' : t(`note.${kind}`));
+
+// Remembered per visitor (best effort: storage may be off).
+const pref = {
+  get: (k, d) => { try { return localStorage.getItem(`sismo-${k}`) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem(`sismo-${k}`, v); } catch { /* not allowed */ } },
+};
+// Line style per kind of plate boundary.
+const PLATE_STYLE = {
+  subduction: { weight: 3, dashArray: null },
+  convergent: { weight: 2.5, dashArray: null },
+  transform: { weight: 2, dashArray: '8 5' },
+  ridge: { weight: 2, dashArray: '2 5' },
+  other: { weight: 1.5, dashArray: '2 4' },
+};
 const AUX = new Set(['other', 'pre', 'unconfirmed']); // drawn on the secondary layer
 
 export class QuakeMap {
@@ -65,12 +79,22 @@ export class QuakeMap {
 
     const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
     const key = (TILES.cartoKey || '').trim();
-    L.tileLayer(key
-      ? `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(key)}`
-      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: key ? `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>` : osm,
-    }).addTo(map);
+    this.bases = {
+      streets: L.tileLayer(key
+        ? `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(key)}`
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, className: 'base-streets',
+        attribution: key ? `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>` : osm,
+      }),
+    };
+    if (SATELLITE?.url) {
+      this.bases.satellite = L.tileLayer(SATELLITE.url, {
+        maxZoom: 19, maxNativeZoom: SATELLITE.maxNativeZoom || 14, className: 'base-sat', attribution: SATELLITE.attribution,
+      });
+    }
+    this.baseBtns = [...document.querySelectorAll('[data-base]')];
+    this.baseBtns.forEach((b) => { b.hidden = !this.bases[b.dataset.base]; b.addEventListener('click', () => this.setBase(b.dataset.base)); });
+    this.setBase(pref.get('base', 'streets'));
 
     map.createPane('quakes').style.zIndex = 450;
     map.createPane('pre').style.zIndex = 455; // the week before stays above the aftershocks
@@ -82,6 +106,11 @@ export class QuakeMap {
     this.otherLayer = L.layerGroup().addTo(map);
     this.quakeLayer = L.layerGroup().addTo(map);
     this.fxLayer = L.layerGroup().addTo(map);
+    map.createPane('plates').style.zIndex = 420; // under the earthquakes
+    this.plateLayer = L.layerGroup();
+    this.plateBtn = document.querySelector('#map-plates');
+    this.plateBtn?.addEventListener('click', () => this.setPlates(this.plateBtn.getAttribute('aria-pressed') !== 'true'));
+    this.setPlates(pref.get('plates', 'on') === 'on');
     this.placeLabels = PLACES.filter((x) => x.label).map((p) => ({
       p,
       marker: L.marker([p.lat, p.lon], { pane: 'labels', interactive: false, keyboard: false, icon: this.placeIcon(p) }).addTo(map),
@@ -99,6 +128,58 @@ export class QuakeMap {
       if (!this.fitted) return;
       map.flyToBounds(VIEWS[b.dataset.view], { duration: 0.6 });
     }));
+  }
+
+  /** Street map or satellite. */
+  setBase(name) {
+    if (!this.bases[name]) name = 'streets';
+    for (const [k, layer] of Object.entries(this.bases)) {
+      if (k === name) layer.addTo(this.map); else this.map.removeLayer(layer);
+    }
+    this.base = name;
+    this.mapEl.dataset.base = name;
+    this.baseBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.base === name)));
+    pref.set('base', name);
+  }
+
+  /** Plate boundaries on or off (loaded the first time they're shown). */
+  async setPlates(on) {
+    this.plateBtn?.setAttribute('aria-pressed', String(on));
+    pref.set('plates', on ? 'on' : 'off');
+    this.platesOn = on;
+    if (!on) { this.map.removeLayer(this.plateLayer); this.legend(); return; }
+    this.plateLayer.addTo(this.map);
+    if (!this.plateData) {
+      try {
+        const r = await fetch(PLATES.file);
+        this.plateData = await r.json();
+      } catch { this.plateData = { features: [] }; }
+      this.map.attributionControl.addAttribution(PLATES.attribution);
+    }
+    this.drawPlates();
+    this.legend();
+  }
+
+  drawPlates() {
+    if (!this.plateData || !this.platesOn) return;
+    const color = token('--plate');
+    const names = t('plate');
+    this.plateLayer.clearLayers();
+    for (const f of this.plateData.features) {
+      const kind = f.properties.kind || 'other';
+      const [a, b] = f.properties.name.split(/[-/\\]/);
+      const line = L.polyline(f.geometry.coordinates.map(([x, y]) => [y, x]), {
+        pane: 'plates', color, opacity: 0.85, ...PLATE_STYLE[kind] || PLATE_STYLE.other, interactive: true,
+      });
+      line.bindTooltip(t('plate.tip', names[a] || a, names[b] || b, t('plate.kind')[kind]), { sticky: true });
+      this.plateLayer.addLayer(line);
+    }
+    for (const l of PLATES.labels) {
+      this.plateLayer.addLayer(L.marker([l.lat, l.lon], {
+        pane: 'labels', interactive: false, keyboard: false,
+        icon: L.divIcon({ className: 'plate-label', html: el('span', null, names[l.id] || l.id), iconSize: null }),
+      }));
+    }
   }
 
   placeIcon(p) { return L.divIcon({ className: 'place', html: el('span', null, localName(p)), iconSize: null }); }
@@ -123,6 +204,7 @@ export class QuakeMap {
   /** Text that doesn't come with the data: town labels, legend, buttons. */
   relabel() {
     for (const { p, marker } of this.placeLabels || []) marker.setIcon(this.placeIcon(p));
+    this.drawPlates();
     this.playBtn.textContent = t(this.playing ? 'map.pause' : 'map.play');
     if (this.main) { this.legend(); this.render(); }
   }
@@ -202,6 +284,7 @@ export class QuakeMap {
   restyle() {
     for (const m of this.markers.values()) m.key = '';
     if (this.days) this.palette = dayPalette(this.days);
+    this.drawPlates();
     this.legend();
     this.render();
   }
@@ -333,5 +416,20 @@ export class QuakeMap {
     add({ border: '1.5px solid var(--muted)', background: 'transparent' }, t('leg.outside'));
     if (this.hasUnconfirmed) add({ border: '1.5px dashed var(--ink)', background: 'transparent' }, t('leg.unconf'));
     add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, t('leg.ref'));
+    if (this.platesOn) {
+      const kinds = new Set((this.plateData?.features || []).map((f) => f.properties.kind));
+      for (const k of ['subduction', 'transform', 'ridge', 'convergent']) {
+        if (!kinds.has(k)) continue;
+        const s = el('span', 'plate-key');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '22'); svg.setAttribute('height', '8'); svg.setAttribute('aria-hidden', 'true');
+        const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        Object.entries({ x1: 1, y1: 4, x2: 21, y2: 4, stroke: 'var(--plate)', 'stroke-width': PLATE_STYLE[k].weight }).forEach(([n, v]) => ln.setAttribute(n, v));
+        if (PLATE_STYLE[k].dashArray) ln.setAttribute('stroke-dasharray', PLATE_STYLE[k].dashArray);
+        svg.append(ln);
+        s.append(svg, document.createTextNode(t(`leg.${k}`)));
+        box.append(s);
+      }
+    }
   }
 }

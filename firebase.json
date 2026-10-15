@@ -21,7 +21,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://basemaps.cartocdn.com https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://storage.googleapis.com https://www.seismicportal.eu wss://www.seismicportal.eu https://earthquake.usgs.gov https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'"
+            "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://basemaps.cartocdn.com https://tiles.maps.eox.at https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://storage.googleapis.com https://www.seismicportal.eu wss://www.seismicportal.eu https://earthquake.usgs.gov https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'"
           },
           {
             "key": "X-Content-Type-Options",
