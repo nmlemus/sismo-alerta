@@ -163,6 +163,8 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
         assert fifth["sent"] == 1 and tg.replies[2] == 1 and "sismo distinto del de las" in tg.sent[2][0] and "M4.8 revisado" in tg.sent[2][0]
         # state and feed are on disk; a cold start picks them up without re-announcing
         assert (tmp_path / "igc" / "latest.json").exists() and (tmp_path / "igc" / "recent.json").exists()
+        status = __import__("json").loads((tmp_path / "igc" / "recent.json").read_text())["status"]
+        assert status["igc"]["last_ok"] and status["igc"]["down_since"] is None and status["x"]["on"] is False
         app2 = monitor_main.make_app()
         for fn in app2.on_startup:
             await fn(app2)

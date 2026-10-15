@@ -180,3 +180,30 @@ test('IGC feed: events are confirmed and dropped once EMSC has the same quake', 
   const emsc = [{ t: new Date('2026-10-14T05:43:11Z'), lat: 7.3, lon: -81.3 }, { t: new Date('2026-10-14T06:30:00Z'), lat: 7.75, lon: -80.73 }];
   assert.deepEqual(igcOnly(igc, emsc).map((e) => e.id), ['igc-1']);
 });
+
+import { arrivals, energyTonnes, fmtEnergy, fmtSeconds, whatsappLink } from '../js/hero.js';
+import { igcChannel } from '../js/igc.js';
+
+test('hero: energy, arrival times, share link', () => {
+  assert.ok(Math.abs(energyTonnes(4) - 15) < 1, `M4 ≈ 15 t of TNT (${energyTonnes(4)})`);
+  assert.ok(Math.abs(energyTonnes(3) - 0.48) < 0.03, 'M3 ≈ 480 kg');
+  assert.equal(fmtEnergy(energyTonnes(3)), '480 kg');
+  assert.equal(fmtEnergy(energyTonnes(4.5)), '85 t');
+  assert.match(fmtEnergy(energyTonnes(7.7)), /^5[.,]4 millones de t$/);
+  assert.equal(fmtSeconds(15.2), '15 s');
+  assert.equal(fmtSeconds(62.4), '1 min 2 s');
+  assert.equal(fmtSeconds(120), '2 min');
+  // 48 km SE of Soná, 10 km deep: Santiago first, Panama City about a minute later
+  const ev = { lat: 7.7, lon: -81.0, depth: 10 };
+  const a = arrivals(ev, [{ name: 'Ciudad de Panamá', lat: 8.983, lon: -79.52 }, { name: 'Santiago', lat: 8.1, lon: -80.983 }]);
+  assert.deepEqual(a.map((x) => x.name), ['Santiago', 'Ciudad de Panamá']);
+  assert.ok(a[0].s > 10 && a[0].s < 16 && a[1].s > 60 && a[1].s < 75, JSON.stringify(a.map((x) => x.s)));
+  assert.equal(whatsappLink('Sismo M4.5, hola'), 'https://wa.me/?text=Sismo%20M4.5%2C%20hola');
+});
+
+test('igc: how each IGC quake reached us', () => {
+  assert.equal(igcChannel({ url: 'https://x.com/igcpanamaup/status/123' }), 'x');
+  assert.equal(igcChannel({ url: 'https://sismosgeociencias.up.ac.pa/#aviso' }), 'whatsapp');
+  assert.equal(igcChannel({ url: 'https://www.seismicportal.eu/eventdetails.html?unid=1' }), 'emsc');
+  assert.equal(igcChannel({ url: 'https://sismosgeociencias.up.ac.pa/ultimosismo.html?x', reviewed: true }), 'reviewed');
+});

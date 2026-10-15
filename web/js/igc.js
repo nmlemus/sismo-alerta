@@ -29,11 +29,24 @@ export function parseIgcFeed(json) {
   })).filter((e) => Number.isFinite(e.mag) && Number.isFinite(e.lat) && Number.isFinite(e.lon) && !Number.isNaN(e.t.getTime()));
 }
 
-export async function fetchIgc(file = 'latest.json', fetchImpl = fetch) {
+/** The feed's events, and how the monitor's sources are doing (recent.json has it). */
+export async function fetchIgcFeed(file = 'latest.json', fetchImpl = fetch) {
   const base = IGC_FEED.base.trim().replace(/\/?$/, '/');
   const r = await fetchImpl(`${base}${file}`, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`IGC feed ${r.status}`);
-  return parseIgcFeed(await r.json());
+  const json = await r.json();
+  return { events: parseIgcFeed(json), status: json.status || null };
+}
+
+export const fetchIgc = async (file, fetchImpl) => (await fetchIgcFeed(file, fetchImpl)).events;
+
+/** How an IGC event reached us: its list, its post on X, a relayed WhatsApp notice, or EMSC. */
+export function igcChannel(ev) {
+  const u = ev.url || '';
+  if (/^https:\/\/x\.com\//.test(u)) return 'x';
+  if (u.endsWith('#aviso')) return 'whatsapp';
+  if (u.includes('seismicportal.eu')) return 'emsc';
+  return ev.reviewed ? 'reviewed' : 'preliminary';
 }
 
 /** The same quake reported by two networks: within a minute and 80 km. */

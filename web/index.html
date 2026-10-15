@@ -16,16 +16,50 @@
     <header class="head">
       <div class="headrow">
         <div class="status" id="live" data-kind="warn"><span class="dot" aria-hidden="true"></span><span id="live-text">Cargando…</span><span class="synced" id="synced"></span></div>
+        <span class="headtools">
+        <a class="btn tg" id="tg-cta" href="#" target="_blank" rel="noopener" hidden data-i18n="tg.cta">Avisos en Telegram</a>
         <span class="seg lang" role="group" aria-label="Idioma / Language" data-i18n-attr="aria-label:lang.group">
           <button type="button" class="btn" data-lang="es" lang="es" aria-label="Español" aria-pressed="true">ES</button>
           <button type="button" class="btn" data-lang="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
         </span>
+        </span>
       </div>
       <h1 data-i18n="h1">Terremoto de Panamá y sus réplicas</h1>
       <p class="take" id="takeaway" data-i18n="take.loading">Cargando el catálogo de sismos…</p>
+      <ul class="sources" id="sources" aria-label="Estado de las fuentes" data-i18n-attr="aria-label:src.aria"></ul>
     </header>
 
     <div class="toast" id="toast" role="status" hidden></div>
+
+    <section class="card hero" id="hero" aria-labelledby="hero-h" hidden>
+      <div class="hero-main">
+        <div class="hero-mag"><span class="hero-m">M</span><span id="hero-mag">—</span></div>
+        <div class="hero-body">
+          <div class="hero-head">
+          <h2 class="hero-h" id="hero-h"><span data-i18n="hero.kicker">Última réplica</span>, <span id="hero-ago"></span> <span class="hero-new" id="hero-new" hidden data-i18n="hero.new">nuevo</span></h2>
+          <p class="hero-place" id="hero-place"></p>
+          </div>
+          <dl class="hero-facts">
+            <div><dt data-i18n="hero.time">Hora de Panamá</dt><dd id="hero-time"></dd></div>
+            <div><dt data-i18n="hero.depth">Profundidad</dt><dd id="hero-depth"></dd></div>
+            <div><dt data-i18n="hero.energy">Energía liberada</dt><dd id="hero-energy"></dd></div>
+            <div><dt data-i18n="hero.src">Publicado por</dt><dd id="hero-src"></dd></div>
+          </dl>
+          <p class="hero-felt"><span class="badge sm" id="hero-mmi"></span><span id="hero-felt"></span>
+            <button type="button" class="btn" id="hero-locate" data-i18n="hero.locate">Calcular para mi ubicación</button></p>
+        </div>
+      </div>
+      <div class="hero-wave">
+        <h3 data-i18n="hero.waveH">Cuánto tardó la sacudida en llegar</h3>
+        <ol class="arrivals" id="hero-arrivals"></ol>
+        <p class="note" data-i18n="hero.waveNote">Tiempo de la onda S, la que más sacude, a unos 3,5 km por segundo. Que llegue no quiere decir que se sienta: eso depende de la magnitud y la distancia.</p>
+      </div>
+      <div class="hero-actions">
+        <button type="button" class="btn primary" id="hero-map" data-i18n="hero.map">Ver en el mapa</button>
+        <a class="btn" id="hero-wa" href="#" target="_blank" rel="noopener" data-i18n="hero.wa">Compartir por WhatsApp</a>
+        <button type="button" class="btn" id="hero-share" hidden data-i18n="hero.share">Compartir</button>
+      </div>
+    </section>
 
     <section class="tiles" aria-label="Cifras principales" data-i18n-attr="aria-label:tiles.aria">
       <div class="card tile">
@@ -52,11 +86,6 @@
         <span class="lbl" data-i18n="tile.rate">Ritmo de réplicas fuertes</span>
         <span class="num" id="m4-rate">—</span>
         <span class="sub" id="m4-sub"></span>
-      </div>
-      <div class="card tile">
-        <span class="lbl" data-i18n="tile.last">Última réplica</span>
-        <span class="num" id="last-ago">—</span>
-        <span class="sub" id="last-sub"></span>
       </div>
     </section>
 

@@ -78,6 +78,9 @@ export const TILES = { cartoKey: '' };
 // 'https://storage.googleapis.com/<bucket>/igc/'. Empty: the page uses EMSC only.
 export const IGC_FEED = { base: 'https://storage.googleapis.com/sismo-alerta-235ca-sismo-feed/igc/', pollSeconds: 60 };
 
+// Public Telegram channel the IGC monitor posts to (without @). Empty: no link on the page.
+export const TELEGRAM = { channel: 'sismos_panama_live' };
+
 // Visit statistics (countries, cities, where people come from). Paste the Google
 // Analytics 4 measurement ID ("G-…") of the Firebase project here; empty = off.
 export const ANALYTICS = { measurementId: 'G-VJL4JJSVCB' };

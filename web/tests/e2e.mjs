@@ -138,6 +138,28 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check(/Sismo principal.*vie 9 oct.*lun 12 oct/.test(await page.textContent('#map-legend')), `${vp.name}: day legend on the map`);
   check((await page.locator('#legend-timeline span').count()) >= 5, `${vp.name}: day legend on the timeline`);
   check((await page.locator('#legend-intensity .sw').count()) >= 5, `${vp.name}: intensity legend`);
+  // latest earthquake up top
+  check(await page.isVisible('#hero'), `${vp.name}: hero shown`);
+  check((await page.locator('#hero-arrivals li').count()) === 6, `${vp.name}: arrival times for the 6 towns`);
+  check(/^\d+ s$|min/.test(await page.textContent('#hero-arrivals li .arr-val')), `${vp.name}: arrival time format (${await page.textContent('#hero-arrivals li .arr-val')})`);
+  check((await page.textContent('#hero-energy')).includes('TNT'), `${vp.name}: energy in TNT (${await page.textContent('#hero-energy')})`);
+  check((await page.textContent('#hero-felt')).includes('Ciudad de Panamá'), `${vp.name}: estimated intensity in Panama City`);
+  check((await page.getAttribute('#hero-wa', 'href')).startsWith('https://wa.me/?text=Sismo%20M'), `${vp.name}: WhatsApp share link`);
+  check((await page.getAttribute('#tg-cta', 'href')) === 'https://t.me/sismos_panama_live', `${vp.name}: Telegram channel link`);
+  check((await page.locator('#map path.latest-ring').count()) === 1, `${vp.name}: latest earthquake rings on the map`);
+  check(/EMSC: en vivo/.test(await page.textContent('#sources')) && /USGS: al día/.test(await page.textContent('#sources')), `${vp.name}: sources strip (${await page.textContent('#sources')})`);
+  await page.click('#hero-map');
+  await page.waitForSelector('#map .leaflet-popup', { timeout: 4000 }).catch(() => {});
+  check((await page.locator('#map .leaflet-popup').count()) === 1, `${vp.name}: "show on the map" opens its card on the map`);
+  await page.keyboard.press('Escape');
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({ latitude: 8.0, longitude: -80.9 });
+  await page.click('#hero-locate');
+  await page.waitForSelector('#hero-arrivals li.you', { timeout: 4000 }).catch(() => {});
+  check((await page.locator('#hero-arrivals li.you').count()) === 1 && (await page.textContent('#hero-felt')).includes('tu ubicación'), `${vp.name}: "my location" adds your row and intensity (${await page.textContent('#hero-felt')})`);
+  check(await page.isHidden('#hero-locate'), `${vp.name}: location button hides once located`);
+  await page.selectOption('#ref-select', 'panama');
+  await page.waitForTimeout(300);
   // chart dots open the EMSC page: a click goes there, a tap pins a tooltip with the link
   await page.locator('#chart-timeline').scrollIntoViewIfNeeded();
   const mainDot = await page.locator('#chart-timeline circle.dot.main').boundingBox();
@@ -241,7 +263,9 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForSelector('#toast:not([hidden])', { timeout: 5000 });
   await page.waitForTimeout(300);
   check((await page.textContent('#n-after')) === '306', `${vp.name}: live event counted`);
-  check((await page.textContent('#last-sub')).startsWith('M4.9'), `${vp.name}: latest aftershock updated`);
+  check((await page.textContent('#hero-mag')) === '4.9' && await page.isVisible('#hero-new'), `${vp.name}: hero shows the live quake as new`);
+  check(await page.evaluate(() => document.querySelector('#hero').classList.contains('arrived')), `${vp.name}: hero lights up when it arrives`);
+  check((await page.locator('#map path.pulse').count()) >= 1, `${vp.name}: ripple on the map`);
   check((await page.textContent('#toast')).includes('M4.9'), `${vp.name}: toast shown`);
   // EMSC deletes it: it goes away
   socket.send(JSON.stringify({ action: 'delete', data: { type: 'Feature', id: 'TEST_1', properties: { unid: 'TEST_1' } } }));
@@ -354,9 +378,12 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
     ev('igc-conf', '2026-10-11T12:00:20Z', 7.52, -80.8, 4.0), // confirms FAKE_UNA
   ];
   let recent = [week[1]];
+  const status = { checked: NOW.toISOString(), igc: { last_ok: '2026-10-12T21:00:00Z', down_since: '2026-10-12T21:30:00Z', reason: 'la página dice: «Estamos en mantenimiento»' },
+    x: { on: true, last_ok: new Date(NOW.getTime() - 60e3).toISOString(), user: 'igcpanamaup' } };
   await page.route(/storage\.googleapis\.com\/test-bucket\/igc\//, (route) => {
-    const events = route.request().url().includes('recent.json') ? recent : week;
-    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ events }) });
+    const isRecent = route.request().url().includes('recent.json');
+    const body = isRecent ? { events: recent, status } : { events: week };
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   });
   await page.route(/seismicportal\.eu\/fdsnws/, emscRoute);
   await page.route(/googletagmanager\.com|google-analytics\.com/, (route) => route.fulfill({ contentType: 'text/javascript', body: '' }));
@@ -368,6 +395,10 @@ const EXCLUDE = fixture.features.find((f) => f.properties.time > '2026-10-09T18:
   check((await page.textContent('#n-after')) === '307', `igc: +1 IGC-only quake and +1 confirmed by IGC, the duplicate not counted (${await page.textContent('#n-after')})`);
   check(await page.isHidden('#unconfirmed-note'), 'igc: the UNA-only event is confirmed by IGC');
   check((await page.locator('#events a', { hasText: 'IGC ↗' }).count()) === 1, 'igc: IGC-only quake links to the IGC page');
+  await page.waitForTimeout(2500); // first recent.json poll brings the sources' status
+  const srcText = await page.textContent('#sources');
+  check(/IGC, lista web: sin respuesta desde las 4:30/.test(srcText) && /IGC en X: al día/.test(srcText), `igc: sources strip shows IGC's list down and X up (${srcText})`);
+  check((await page.getAttribute('#sources li[data-kind=bad]', 'title')).includes('mantenimiento'), 'igc: the reason is in the tooltip');
   recent = [week[1], ev('igc-live', new Date(NOW.getTime() - 30e3).toISOString(), 7.65, -81.0, 4.4)];
   await page.waitForSelector('#toast:not([hidden])', { timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(300);

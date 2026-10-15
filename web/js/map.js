@@ -247,6 +247,12 @@ export class QuakeMap {
         m.marker.setStyle({ color: recent ? ink : surface, weight: recent ? 2 : 1, fillColor: c, fillOpacity: 0.85 });
       }
     }
+    if (this.latestRing) {
+      const show = this.latest.t.getTime() <= tNow;
+      if (show && !this.fxLayer.hasLayer(this.latestRing)) this.fxLayer.addLayer(this.latestRing);
+      if (!show && this.fxLayer.hasLayer(this.latestRing)) this.fxLayer.removeLayer(this.latestRing);
+      this.latestRing.setStyle({ color: ink });
+    }
     const before = this.t != null && this.t < 0;
     const when = this.t == null ? t('time.now', fmtTime(new Date(tNow))) : fmtTime(new Date(tNow));
     const count = before ? t('time.before', (-this.t / (24 * H)).toFixed(1), fmtInt(nPre)) : t('time.after', fmtInt(n));
@@ -276,6 +282,30 @@ export class QuakeMap {
     this.playing = false;
     cancelAnimationFrame(this.raf);
     this.playBtn.textContent = t('map.play');
+  }
+
+  /** A slow ring that keeps beating around the latest earthquake. */
+  setLatest(ev) {
+    this.latest = ev;
+    if (this.latestRing) this.fxLayer.removeLayer(this.latestRing);
+    this.latestRing = L.circleMarker([ev.lat, ev.lon], {
+      pane: 'quakes', radius: radiusFor(ev.mag) + 3, color: token('--ink'), weight: 2, fill: false, interactive: false, className: 'latest-ring',
+    });
+    this.render();
+  }
+
+  /** Centers the map on an earthquake and opens its card. */
+  focus(ev) {
+    this.stop();
+    this.t = null;
+    this.render();
+    const m = this.markers.get(ev.id);
+    let opened = false;
+    const open = () => { if (!opened && m?.shown) { opened = true; m.marker.openPopup(); } };
+    this.map.once('moveend', open);
+    setTimeout(open, 1500); // in case the flight is interrupted
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) this.map.setView([ev.lat, ev.lon], Math.max(this.map.getZoom(), 9));
+    else this.map.flyTo([ev.lat, ev.lon], Math.max(this.map.getZoom(), 9), { duration: 0.8 });
   }
 
   /** A pulsing ring around a newly published event. */

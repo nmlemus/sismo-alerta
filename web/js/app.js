@@ -1,6 +1,6 @@
 // Page logic: loads the catalog, keeps it live, derives the sequence and redraws.
 
-import { EMSC, IGC_FEED, PLACES, REFERENCES, SEQUENCE } from './config.js';
+import { EMSC, IGC_FEED, PLACES, REFERENCES, SEQUENCE, TELEGRAM } from './config.js';
 import { LiveFeed, emscLink, fetchEvent, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
@@ -8,7 +8,8 @@ import { dayLegend, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
-import { fetchIgc, igcOn, igcOnly, sameQuake } from './igc.js';
+import { fetchIgcFeed, igcChannel, igcOn, igcOnly, sameQuake } from './igc.js';
+import { playWave, renderHero, shareUrl } from './hero.js';
 import { analyticsOn, track } from './analytics.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange } from './theme.js';
@@ -39,6 +40,10 @@ const state = {
   period: 'todo', // pre | todo | hoy | 24h | 6h
   minMag: 0, // 0 = all
   showPre: false,
+  igcStatus: null, // the monitor's sources (recent.json)
+  usgsAt: null,
+  heroId: null, // latest earthquake shown in the hero
+  heroNew: null, // id of a quake that arrived live while the page was open
 };
 
 const PERIODS = ['pre', 'todo', 'hoy', '24h', '6h'];
@@ -82,6 +87,7 @@ function announce(ev) {
   if (ev.source !== 'igc' && [...state.igc.values()].some((q) => sameQuake(q, ev))) return;
   toast(ev);
   map.flash(ev);
+  state.heroNew = ev.id;
 }
 
 /** Live events that aren't the national network's: fetch all solutions to decide. */
@@ -201,6 +207,85 @@ function renderStatus() {
     : state.live === 'open' ? t('st.live') : state.loaded ? t('st.reconnecting') : t('st.loading');
   setText('#live-text', text);
   setText('#synced', state.lastSync ? t('st.synced', fmtClock(state.lastSync)) : '');
+  renderSources(Date.now());
+}
+
+/** One chip per data source: green when current, amber when late, red when down. */
+function renderSources(now) {
+  const box = $('#sources');
+  const chips = [];
+  const add = (label, kind, text, title) => {
+    const li = document.createElement('li');
+    li.dataset.kind = kind;
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.setAttribute('aria-hidden', 'true');
+    li.append(dot, `${label}: ${text}`);
+    if (title) li.title = title;
+    chips.push(li);
+  };
+  const clock = (iso) => fmtClock(new Date(iso));
+  const st = state.igcStatus;
+  if (igcOn() && st) {
+    const stale = now - Date.parse(st.checked) > 10 * 60e3;
+    if (stale) add(t('src.igc'), 'warn', t('src.stale', clock(st.checked)));
+    else if (st.igc?.down_since) add(t('src.igc'), 'bad', t('src.down', clock(st.igc.down_since)), st.igc.reason || '');
+    else add(t('src.igc'), 'ok', t('src.ok'), st.igc?.last_ok ? t('src.title', clock(st.igc.last_ok)) : '');
+    if (st.x?.on) {
+      const late = !st.x.last_ok || now - Date.parse(st.x.last_ok) > 5 * 60e3;
+      if (stale) add(t('src.x'), 'warn', t('src.stale', clock(st.checked)));
+      else add(t('src.x'), late ? 'bad' : 'ok', late ? t('src.down', st.x.last_ok ? clock(st.x.last_ok) : '—') : t('src.ok'),
+        st.x.last_ok ? t('src.title', clock(st.x.last_ok)) : '');
+    }
+  }
+  if (state.error && !state.loaded) add(t('src.emsc'), 'bad', t('src.offline'));
+  else if (state.live === 'open') add(t('src.emsc'), 'ok', t('src.live'), state.lastSync ? t('src.title', fmtClock(state.lastSync)) : '');
+  else add(t('src.emsc'), state.loaded ? 'warn' : 'warn', state.loaded ? t('src.poll') : t('src.loading'));
+  if (state.usgs) add(t('src.usgs'), 'ok', t('src.ok'), state.usgsAt ? t('src.title', fmtClock(state.usgsAt)) : '');
+  else add(t('src.usgs'), state.usgsError ? 'bad' : 'warn', state.usgsError ? t('src.offline') : t('src.loading'));
+  box.replaceChildren(...chips);
+}
+
+/** The hero: latest aftershock in the chosen area (the one the headline talks about),
+ * whatever the period and magnitude filters. */
+function renderLatest(d, now) {
+  const ev = d.seq.length ? d.seq[d.seq.length - 1] : d.main;
+  const ref = state.ref;
+  const km = epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon);
+  const mmi = estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust);
+  const level = mmiLevel(mmi);
+  const how = ev.source === 'igc' ? igcChannel(ev) : null;
+  const refs = REFERENCES.map((r) => ({ name: localName(r), lat: r.lat, lon: r.lon }));
+  const you = ref.id === 'me' ? { name: t('hero.you'), lat: ref.lat, lon: ref.lon, you: true } : null;
+  if (you) refs.push(you);
+  renderHero({
+    box: $('#hero'), mag: $('#hero-mag'), ago: $('#hero-ago'), place: $('#hero-place'), time: $('#hero-time'),
+    depth: $('#hero-depth'), energy: $('#hero-energy'), src: $('#hero-src'), mmi: $('#hero-mmi'), felt: $('#hero-felt'),
+    locate: $('#hero-locate'), wa: $('#hero-wa'), arrivals: $('#hero-arrivals'),
+  }, {
+    ev, ago: ago(ev.t, now), time: fmtTime(ev.t), place: ev.place, refs, you,
+    felt: { roman: ROMAN[level], color: MMI_COLORS[level], text: t('hero.felt', describeMmi(mmi), ref.name, Math.round(km)) },
+    sourceText: t('hero.srcVal', ev.agency || 'EMSC', how ? t('hero.how')[how] : ''),
+    shareText: t('hero.shareText', fmtMag(ev.mag), ev.place, fmtTime(ev.t), t('hero.shareFelt', describeMmi(mmi), ref.name), shareUrl()),
+  });
+  state.heroEv = ev;
+  const fresh = state.heroNew === ev.id && now - ev.t < 30 * 60e3;
+  $('#hero-new').hidden = !fresh;
+  if (ev.id !== state.heroId) {
+    const first = state.heroId == null;
+    state.heroId = ev.id;
+    playWave($('#hero-arrivals'));
+    map.setLatest(ev);
+    if (!first && fresh) {
+      const box = $('#hero');
+      box.classList.remove('arrived');
+      void box.offsetWidth;
+      box.classList.add('arrived');
+    }
+  } else if (you && state.heroYou !== `${you.lat},${you.lon}`) {
+    playWave($('#hero-arrivals')); // the visitor's own row just appeared
+  }
+  state.heroYou = you ? `${you.lat},${you.lon}` : null;
 }
 
 function chart(sel, fn, opts) {
@@ -233,8 +318,7 @@ function render() {
   setText('#freq-sub', t('freq.sub', fmtRate(s.rateFirst6)));
   setText('#m4-rate', fmtRate(s.m4Last12));
   setText('#m4-sub', t('m4.sub', fmtRate(s.m4First12)));
-  setText('#last-ago', s.latest ? ago(s.latest.t, now) : '—');
-  setText('#last-sub', s.latest ? `M${fmtMag(s.latest.mag)} · ${s.latest.place}` : '');
+  renderLatest(d, now);
 
   const take = [t('take.count', fmtInt(seq.length), fmtTime(main.t)).replace(/\.\.$/, '.')];
   if (s.span >= 24) take.push(t('take.rate', fmtRate(s.m4First12), fmtRate(s.m4Last12), fmtRate(s.rateFirst12), fmtRate(s.rateLast12)));
@@ -484,7 +568,8 @@ async function load() {
 async function loadIgc(file = 'latest.json') {
   if (!igcOn()) return;
   try {
-    const evs = await fetchIgc(file);
+    const { events: evs, status } = await fetchIgcFeed(file);
+    if (status) state.igcStatus = status;
     const emsc = [...state.events.values()];
     for (const ev of evs) {
       ev.place = placeName(ev.lat, ev.lon, PLACES, '');
@@ -542,6 +627,7 @@ function renderExcluded() {
 async function loadUsgs() {
   try {
     state.usgs = await fetchUsgs(SEQUENCE.usgsEventId);
+    state.usgsAt = new Date();
     state.usgsError = false;
   } catch {
     state.usgsError = true;
@@ -589,20 +675,58 @@ function setupReference() {
       scheduleRender();
       return;
     }
-    if (!navigator.geolocation) { sel.value = state.ref.id; return; }
-    setText('#ref-note', t('ref.locating'));
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const lat = pos.coords.latitude, lon = pos.coords.longitude;
-      // Use the Panama City calibration inside the metro area; the plain model elsewhere.
-      const near = epicentralKm(lat, lon, REFERENCES[0].lat, REFERENCES[0].lon) < 35;
-      state.ref = { id: 'me', name: t('ref.meName'), lat, lon, siteAdjust: near ? REFERENCES[0].siteAdjust : 0 };
-      setText('#ref-note', t('ref.private'));
-      scheduleRender();
-    }, () => {
-      sel.value = state.ref.id;
-      setText('#ref-note', t('ref.locFail'));
-    }, { maximumAge: 600000, timeout: 15000 });
+    locateMe();
   });
+}
+
+/** Asks for the visitor's location and makes it the reference point (map, hero, charts, table). */
+function locateMe() {
+  const sel = $('#ref-select');
+  if (!navigator.geolocation) { sel.value = state.ref.id; setText('#ref-note', t('ref.locFail')); return; }
+  sel.value = 'me';
+  setText('#ref-note', t('ref.locating'));
+  const btn = $('#hero-locate');
+  btn.disabled = true;
+  btn.textContent = t('hero.locating');
+  const done = () => { btn.disabled = false; btn.textContent = t('hero.locate'); };
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    // Use the Panama City calibration inside the metro area; the plain model elsewhere.
+    const near = epicentralKm(lat, lon, REFERENCES[0].lat, REFERENCES[0].lon) < 35;
+    state.ref = { id: 'me', name: t('ref.meName'), lat, lon, siteAdjust: near ? REFERENCES[0].siteAdjust : 0 };
+    setText('#ref-note', t('ref.private'));
+    done();
+    scheduleRender();
+  }, () => {
+    sel.value = state.ref.id;
+    setText('#ref-note', t('ref.locFail'));
+    done();
+    $('#hero-felt').textContent = t('ref.locFail');
+  }, { maximumAge: 600000, timeout: 15000 });
+}
+
+function setupHero() {
+  $('#hero-locate').addEventListener('click', () => { track('locate', { from: 'hero' }); locateMe(); });
+  $('#hero-map').addEventListener('click', () => {
+    if (!state.heroEv) return;
+    track('hero_map', {});
+    $('#map-card').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    map.focus(state.heroEv);
+  });
+  $('#hero-wa').addEventListener('click', () => track('share', { method: 'whatsapp' }));
+  const share = $('#hero-share');
+  share.hidden = !navigator.share;
+  share.addEventListener('click', async () => {
+    track('share', { method: 'native' });
+    try { await navigator.share({ title: document.title, text: decodeURIComponent($('#hero-wa').href.split('?text=')[1] || ''), url: shareUrl() }); } catch { /* cancelled */ }
+  });
+  const tg = $('#tg-cta');
+  const channel = (TELEGRAM.channel || '').replace(/^@/, '').trim();
+  tg.hidden = !channel;
+  if (channel) {
+    tg.href = `https://t.me/${encodeURIComponent(channel)}`;
+    tg.addEventListener('click', () => track('telegram_cta', {}));
+  }
 }
 
 /** A reference point with its name in the page's language. */
@@ -703,6 +827,7 @@ map.init();
 map.relabel();
 setupLanguage();
 setupReference();
+setupHero();
 setupFilters();
 setupTable();
 renderStatus();

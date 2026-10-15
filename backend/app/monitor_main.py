@@ -330,10 +330,27 @@ def back_notice(minutes: float) -> str:
 
 
 async def _save(store, state: State) -> None:
-    # latest.json: the week, read once by the page; recent.json: 6 h, re-read every minute.
+    # latest.json: the week, read once by the page. recent.json (6 h, re-read every
+    # minute) is written once per tick by write_recent: Cloud Storage allows about
+    # one write per second to the same object.
     await store.write("igc/latest.json", json.dumps(feed(state.known), ensure_ascii=False), public=True)
-    await store.write("igc/recent.json", json.dumps(feed(state.known, hours=6), ensure_ascii=False), public=True)
     await store.write("igc/state.json", state.dumps())
+
+
+def sources_status(state: State, now: datetime) -> dict:
+    """How each source is doing, for the page's status strip."""
+    return {
+        "checked": _iso(now),
+        "igc": {"last_ok": state.last_ok, "down_since": state.down_since, "reason": state.down_reason},
+        "x": {"on": bool(CFG["x_token"]), "last_ok": state.x_last_ok, "user": CFG["x_user"]},
+    }
+
+
+async def write_recent(store, state: State, now: datetime) -> None:
+    """The last 6 hours plus the sources' status, every tick (the page reads it every minute)."""
+    payload = feed(state.known, hours=6)
+    payload["status"] = sources_status(state, now)
+    await store.write("igc/recent.json", json.dumps(payload, ensure_ascii=False), public=True)
 
 
 async def load_state(app: web.Application) -> State:
@@ -437,6 +454,7 @@ async def tick(app: web.Application) -> dict:
             summary = await igc_tick(app, state, now, fresh)
         finally:
             await archive.flush(app["store"])
+            await write_recent(app["store"], state, now)
         if x is not None:
             summary["x"] = x
             summary["changed"] = summary["changed"] or bool(x.get("new") or x.get("edited"))
@@ -561,6 +579,7 @@ async def relay_notice(app: web.Application, q: IgcQuake, raw: str | None = None
         finally:
             state.known = res.known
             await _save(app["store"], state)
+            await write_recent(app["store"], state, now)
             await archive_of(app).flush(app["store"])
     if sent:
         return "✅ Publicado en el canal."
