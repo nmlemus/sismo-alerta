@@ -20,7 +20,7 @@ function el(tag, cls, text) {
   return n;
 }
 
-function quakeCard(ev, note, withLink) {
+function quakeCard(ev, note, withLink, onWave) {
   const box = el('div', 'qtip');
   box.append(el('div', 'tip-h', fmtTime(ev.t)));
   box.append(el('div', null, t('q.depth', fmtMag(ev.mag), ev.magType, ev.depth)));
@@ -32,6 +32,12 @@ function quakeCard(ev, note, withLink) {
     a.target = '_blank';
     a.rel = 'noopener';
     box.append(a);
+  }
+  if (onWave) {
+    const b = el('button', 'btn wave-btn', t('wave.btn'));
+    b.type = 'button';
+    b.addEventListener('click', () => onWave(ev));
+    box.append(b);
   }
   return box;
 }
@@ -253,7 +259,8 @@ export class QuakeMap {
       if (prev) this.layerOf(prev.kind).removeLayer(prev.marker);
       const radius = kind === 'pre' ? Math.max(6, radiusFor(ev.mag) + 2) : radiusFor(ev.mag) + (kind === 'main' ? 2 : 0);
       const marker = L.circleMarker([ev.lat, ev.lon], { pane: kind === 'pre' ? 'pre' : 'quakes', radius, weight: 1 });
-      marker.bindPopup(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), true));
+      marker.bindPopup(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), true,
+        kind === 'unconfirmed' || !this.onPropagate ? null : (e) => { this.map.closePopup(); this.onPropagate(e); }));
       if (kind === 'main') marker.bindTooltip(`M${fmtMag(ev.mag)}`, { permanent: true, direction: 'right', className: 'main-label', offset: [8, 0] });
       else marker.bindTooltip(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), false), { direction: 'top', offset: [0, -4] });
       this.markers.set(ev.id, { marker, ev, kind, sig, shown: false, key: '' });

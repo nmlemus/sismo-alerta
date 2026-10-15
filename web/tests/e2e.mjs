@@ -190,6 +190,25 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.click('#hero-map');
   await page.waitForSelector('#map .leaflet-popup', { timeout: 4000 }).catch(() => {});
   check((await page.locator('#map .leaflet-popup').count()) === 1, `${vp.name}: "show on the map" opens its card on the map`);
+  // wave simulation from the map card: animates, then can be closed
+  await page.locator('#map .leaflet-popup .wave-btn').click();
+  await page.waitForTimeout(1800);
+  if (OUT && vp.name === 'desktop') { await page.waitForTimeout(1500); await page.locator('#map').screenshot({ path: join(OUT, 'waves-mid.png') }); }
+  check(await page.isVisible('#wave-panel') && (await page.textContent('#wave-title')).includes('M3.5'), `${vp.name}: simulation starts from the map card (${await page.textContent('#wave-title')})`);
+  check(/después del sismo: la onda S va a \d+ km/.test(await page.textContent('#wave-clock')), `${vp.name}: the S wave front moves (${await page.textContent('#wave-clock')})`);
+  check((await page.locator('#map .leaflet-waves-pane path').count()) >= 3, `${vp.name}: P and S rings drawn`);
+  check(await page.evaluate(() => document.querySelector('#map').classList.contains('simulating')), `${vp.name}: other earthquakes dimmed meanwhile`);
+  await page.click('#wave-close');
+  check(await page.isHidden('#wave-panel') && (await page.locator('#map .leaflet-waves-pane path').count()) === 0, `${vp.name}: closing the simulation clears it`);
+  // with reduced motion: straight to the result (zones, where it stopped being felt)
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.click('#hero-wave');
+  await page.waitForTimeout(300);
+  check(/dejó de sentirse a unos \d+ km/.test(await page.textContent('#wave-clock')) && (await page.locator('#wave-legend .sw').count()) >= 2, `${vp.name}: reduced motion shows the zones right away (${await page.textContent('#wave-clock')})`);
+  check((await page.locator('#map .leaflet-waves-pane path').count()) >= 3, `${vp.name}: intensity zones drawn`);
+  if (OUT && vp.name === 'desktop') await page.locator('#map-card').screenshot({ path: join(OUT, 'waves-final.png') });
+  await page.click('#wave-close');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.keyboard.press('Escape');
   await page.context().grantPermissions(['geolocation']);
   await page.context().setGeolocation({ latitude: 8.0, longitude: -80.9 });

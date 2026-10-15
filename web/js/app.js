@@ -11,6 +11,7 @@ import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
 import { fetchIgcFeed, igcChannel, igcOn, igcOnly, sameQuake } from './igc.js';
 import { playWave, renderHero, shareUrl } from './hero.js';
+import { Propagation } from './propagation.js';
 import { analyticsOn, track } from './analytics.js';
 import { fetchUsgs } from './usgs.js';
 import { dayPalette, onThemeChange, setTheme, themeMode } from './theme.js';
@@ -740,6 +741,34 @@ function setupTheme() {
   sync();
 }
 
+/** The towns a simulated wave marks as it reaches them (and the visitor, if located). */
+function waveTowns() {
+  const list = REFERENCES.map((r) => ({ name: localName(r), lat: r.lat, lon: r.lon, siteAdjust: r.siteAdjust }));
+  const ref = state.ref;
+  if (ref.id === 'me') list.push({ name: t('hero.you'), lat: ref.lat, lon: ref.lon, siteAdjust: ref.siteAdjust, you: true });
+  return list;
+}
+
+let waves = null;
+function startWave(ev) {
+  if (!ev || !waves) return;
+  map.stop();
+  track('propagation', { mag: ev.mag });
+  const card = $('#map-card');
+  const r = card.getBoundingClientRect();
+  if (r.top < 0 || r.top > innerHeight * 0.5) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  waves.play(ev);
+}
+
+function setupWaves() {
+  waves = new Propagation(map.map, {
+    box: $('#wave-panel'), title: $('#wave-title'), clock: $('#wave-clock'), legend: $('#wave-legend'),
+    replay: $('#wave-replay'), close: $('#wave-close'), speedBtns: [...document.querySelectorAll('[data-speed]')],
+  }, waveTowns);
+  map.onPropagate = startWave;
+  $('#hero-wave').addEventListener('click', () => startWave(state.heroEv));
+}
+
 function setupHero() {
   $('#hero-locate').addEventListener('click', () => { track('locate', { from: 'hero' }); locateMe(); });
   $('#hero-map').addEventListener('click', () => {
@@ -869,6 +898,7 @@ applyStatic();
 document.querySelector('#analytics-note').hidden = !analyticsOn;
 map.init();
 map.relabel();
+setupWaves();
 setupLanguage();
 setupReference();
 setupHero();

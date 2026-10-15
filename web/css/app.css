@@ -248,6 +248,24 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .map { height: clamp(360px, 62vh, 620px); border-radius: 8px; border: 1px solid var(--border); background: var(--page); }
 .leaflet-container { font: inherit; background: var(--page); }
 .map .base-streets { filter: var(--tiles-filter); }
+/* wave simulation */
+.wavepanel { border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; padding: 10px 14px; margin: 0 0 10px; background: var(--page); }
+.wave-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.wave-tag { font-size: 11px; font-weight: 700; color: var(--on-primary-container); background: var(--primary-container); border-radius: 999px; padding: 1px 8px; }
+.wave-clock { margin: 6px 0; font-variant-numeric: tabular-nums; min-height: 1.5em; }
+.wave-key { margin: 4px 0; }
+.wave-key svg { color: var(--ink); flex: none; }
+.wavepanel #wave-legend:empty { display: none; }
+.wave-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.wavepanel .note { margin: 8px 0 0; }
+.map.simulating .leaflet-quakes-pane, .map.simulating .leaflet-pre-pane { opacity: 0.3; }
+path.wave-p { color: var(--ink); }
+path.wave-halo { stroke: var(--ink); }
+.wave-hit span { display: inline-block; white-space: nowrap; font-size: 12px; font-weight: 700; color: #0b0b0b; background: var(--c); border: 1px solid rgba(0, 0, 0, 0.35); border-radius: 999px; padding: 1px 8px; transform: translate(-50%, -150%); box-shadow: var(--elev-1); animation: wave-pop 0.4s ease-out both; }
+.wave-hit.you span { outline: 2px solid var(--link); }
+@keyframes wave-pop { from { opacity: 0; transform: translate(-50%, -110%) scale(0.8); } }
+.qtip .wave-btn { margin-top: 8px; min-height: 32px; padding: 4px 12px; font-size: 12px; }
+.qtip .wave-btn svg { width: 14px; height: 14px; }
 .maplayers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; font-size: 13px; }
 .plate-label span { display: block; white-space: nowrap; font-size: 12px; font-style: italic; font-weight: 600; color: var(--plate); text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface); transform: translate(-50%, -50%); }
 .map[data-base=satellite] .plate-label span, .map[data-base=satellite] .place span { text-shadow: 0 0 3px #000, 0 0 3px #000; color: #fff; }
@@ -267,6 +285,7 @@ path.pulse { animation: pulse 1.6s ease-out infinite; }
 path.latest-ring { animation: ring 2.6s ease-out infinite; }
 @keyframes ring { 0% { stroke-width: 2; stroke-opacity: 0.9; } 70%, 100% { stroke-width: 16; stroke-opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
+  .wave-hit span { animation: none; }
   path.pulse, path.latest-ring, .status[data-kind=ok] .dot, .arrivals.play .arr-bar, .hero.arrived { animation: none; }
   path.latest-ring { stroke-width: 3; stroke-opacity: 0.8; }
 }

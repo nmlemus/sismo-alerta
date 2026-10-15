@@ -207,3 +207,21 @@ test('igc: how each IGC quake reached us', () => {
   assert.equal(igcChannel({ url: 'https://www.seismicportal.eu/eventdetails.html?unid=1' }), 'emsc');
   assert.equal(igcChannel({ url: 'https://sismosgeociencias.up.ac.pa/ultimosismo.html?x', reviewed: true }), 'reviewed');
 });
+
+import { FELT_MMI, arrivalSec, fastSpeed, frontKm, reachKm, zones } from '../js/propagation.js';
+
+test('propagation: fronts, reach and intensity zones', () => {
+  const ev = { mag: 4.5, depth: 10, lat: 7.5, lon: -80.7 };
+  assert.equal(frontKm(ev, 3.5, 2), 0, 'the S wave has not reached the surface yet');
+  assert.ok(Math.abs(frontKm(ev, 3.5, 10) - Math.sqrt(35 ** 2 - 100)) < 1e-9);
+  assert.ok(Math.abs(arrivalSec(ev, frontKm(ev, 3.5, 10), 3.5) - 10) < 1e-9, 'arrival time is the inverse of the front');
+  // Bigger quakes are felt farther, and the zones nest (higher levels closer in)
+  const r = (mag) => reachKm({ ...ev, mag }, FELT_MMI - 0.5);
+  assert.ok(r(3.5) < r(4.5) && r(4.5) < r(6.6) && r(6.6) < r(7.7));
+  assert.ok(r(3.5) > 20 && r(3.5) < 120 && r(7.7) > 500, `reach M3.5 ${r(3.5)} M7.7 ${r(7.7)}`);
+  const z = zones({ ...ev, mag: 7.7, depth: 13 });
+  assert.ok(z.length >= 6 && z.every((a, i) => i === 0 || a.km < z[i - 1].km), JSON.stringify(z));
+  assert.equal(Math.round(z[0].km), Math.round(r(7.7) === 1500 ? 1500 : reachKm({ ...ev, mag: 7.7, depth: 13 }, FELT_MMI - 0.5)), 'the felt edge is the outer zone');
+  assert.equal(fastSpeed(30, ev), 1, 'small ones play in real time');
+  assert.ok(fastSpeed(800, { ...ev, mag: 7.7 }) > 15, 'big ones are sped up');
+});
