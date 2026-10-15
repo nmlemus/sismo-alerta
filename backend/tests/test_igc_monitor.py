@@ -16,7 +16,8 @@ def old_thresholds():
     """Most tests were written for "every M3.5+, with sound from M4": keep them on that,
     and test the "only significant ones" rule on its own below."""
     saved = dict(monitor_main.CFG)
-    monitor_main.CFG.update(min_mag=3.5, min_mmi=99, loud_mag=4.0, loud_mmi=99, revision_replies=True)
+    monitor_main.CFG.update(min_mag=3.5, min_mmi=99, loud_mag=4.0, loud_mmi=99, revision_replies=True,
+                            emsc_url="http://127.0.0.1:1/none")  # no EMSC unless a test serves one
     yield
     monitor_main.CFG.clear()
     monitor_main.CFG.update(saved)
@@ -702,3 +703,71 @@ async def test_revisions_only_edit_by_default(tmp_path):
     sent, edited = await monitor_main.announce(tg, {pre.id: k_old}, MergeResult(known={pre.id: k_new}, changed=[k_new]))
     assert (sent, edited) == (0, 1) and tg.sent == []
     assert "M4.8" in tg.edits[0][1] and tg.edits[0][1].endswith("<i>✏️ Revisado por el IGC · antes: M4.6 preliminar, 20 km al sur de Soná, Panamá</i>")
+
+
+@pytest.mark.asyncio
+async def test_highest_igc_magnitude_decides(tmp_path):
+    """IGC's list says M4.0 (REVISADO) but IGC sent M4.7 to EMSC, and another quake is
+    M4.3 on the list but M4.5 on X: both are announced, saying where the higher one is."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    monitor_main.CFG.update(min_mag=4.5, min_mmi=5)
+    t1, t2 = now - timedelta(minutes=6), now - timedelta(minutes=3)
+    igc_state = {"etag": '"v1"', "body": _page([(now - timedelta(hours=3), 7.6, -80.7, 3.9, True)])}
+    emsc_state = {"features": []}
+    x = {"posts": []}
+
+    async def igc(request):
+        if request.headers.get("If-None-Match") == igc_state["etag"]:
+            return web.Response(status=304)
+        return web.Response(text=igc_state["body"], content_type="text/html", headers={"ETag": igc_state["etag"]})
+
+    async def emsc(request):
+        return web.json_response({"type": "FeatureCollection", "features": emsc_state["features"]})
+
+    async def user(request):
+        return web.json_response({"data": {"id": "77"}})
+
+    async def tweets(request):
+        since = int(request.query.get("since_id", "0"))
+        return web.json_response({"data": [{"id": i, "text": txt} for i, txt in x["posts"] if int(i) > since]})
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/emsc", emsc)
+    srv.router.add_get("/2/users/by/username/igcpanamaup", user)
+    srv.router.add_get("/2/users/77/tweets", tweets)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    monitor_main.CFG.update(igc_url=f"http://127.0.0.1:{port}/", emsc_url=f"http://127.0.0.1:{port}/emsc",
+                            x_api=f"http://127.0.0.1:{port}/2", x_token="xt")
+    app = monitor_main.make_app()
+    tg = FakeTelegram()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    try:
+        await monitor_main.tick(app)  # learns
+        # the list gets both quakes, below M4.5: nothing goes out
+        igc_state.update(etag='"v2"', body=_page([(t1, 7.65, -81.42, 4.0, True), (t2, 7.50, -80.45, 4.3, False),
+                                                   (now - timedelta(hours=3), 7.6, -80.7, 3.9, True)]))
+        await monitor_main.tick(app)
+        assert tg.sent == []
+        # IGC's solution at EMSC says M4.7 for the first one
+        emsc_state["features"] = [_emsc_feature(t1, 7.6522, -81.4242, 4.7, "IGC", "E1")]
+        r = await monitor_main.tick(app)
+        assert r["emsc_peaks"]["sent"] == 1 and len(tg.sent) == 1
+        assert "SISMO M4.0" in tg.sent[0][0] and "El IGC también lo reportó como M4.7 (en lo que envió a EMSC)" in tg.sent[0][0]
+        await monitor_main.tick(app)
+        assert len(tg.sent) == 1  # once
+        # IGC posts the second one on X as M4.5
+        x["posts"].append(("900", _post(t2, 4.5, "10km al norte de Tonosí")))
+        await monitor_main.tick(app)
+        assert len(tg.sent) == 2 and "El IGC también lo reportó como M4.5 (en X)" in tg.sent[1][0]
+        assert app["state"].x_log[0]["result"] == "aquí el IGC le dio M4.5, más que en su lista: publicado"
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()

@@ -10,7 +10,7 @@ Pure functions (no network), so the rules can be tested:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 
 from .igc import PANAMA_TZ, TOWNS, IgcQuake, from_emsc, from_relay, from_x, same_quake, source
@@ -27,6 +27,10 @@ class Known:
     quake: IgcQuake
     message_id: int | None = None
     sent_signature: str | None = None  # what the message showed, to edit it only when needed
+    # IGC sometimes gives the same quake different magnitudes on its list, on X, on
+    # WhatsApp and in what it sends to EMSC. The highest one decides whether to announce.
+    peak_mag: float | None = None
+    peak_src: str | None = None  # where it said so: x, whatsapp, emsc
 
 
 @dataclass
@@ -34,6 +38,7 @@ class MergeResult:
     known: dict[str, Known]
     new: list[Known] = field(default_factory=list)
     changed: list[Known] = field(default_factory=list)  # magnitude, place or REVISADO changed
+    peaked: list[Known] = field(default_factory=list)  # another IGC channel gave a higher magnitude
 
 
 def signature(q: IgcQuake) -> str:
@@ -51,7 +56,7 @@ def merge(known: dict[str, Known], current: list[IgcQuake], keep_days: float = 8
         if match:
             pool.remove(match)
             before = signature(match.quake)
-            entry = Known(match.id, q, match.message_id, match.sent_signature)
+            entry = Known(match.id, q, match.message_id, match.sent_signature, match.peak_mag, match.peak_src)
             if signature(q) != before:
                 out.changed.append(entry)
         else:
@@ -84,14 +89,68 @@ def merge_backup(known: dict[str, Known], backup: list[IgcQuake]) -> MergeResult
         if match:
             pool.remove(match)
             if _RANK[source(q)] >= _RANK[source(match.quake)] and signature(q) != signature(match.quake):
-                entry = Known(match.id, q, match.message_id, match.sent_signature)
+                entry = Known(match.id, q, match.message_id, match.sent_signature, match.peak_mag, match.peak_src)
                 out.changed.append(entry)
                 out.known[entry.id] = entry
+            elif raise_peak(match, q):
+                out.peaked.append(match)
         else:
             entry = Known(q.id, q)
             out.new.append(entry)
             out.known[entry.id] = entry
     return out
+
+
+def channel(q: IgcQuake) -> str:
+    return "emsc" if from_emsc(q) else "x" if from_x(q) else "whatsapp" if from_relay(q) else "igc"
+
+
+def raise_peak(k: Known, q: IgcQuake) -> bool:
+    """Another IGC version of a known quake: remember its magnitude if it is higher."""
+    if q.mag > effective_mag(k) + 1e-6:
+        k.peak_mag, k.peak_src = q.mag, channel(q)
+        return True
+    return False
+
+
+def apply_peaks(known: dict[str, Known], others: list[IgcQuake]) -> list[Known]:
+    """IGC's solutions as EMSC has them, against the known quakes: only raises peaks
+    (they never replace what IGC's own list says). Returns the quakes that changed."""
+    touched = []
+    for q in others:
+        match = next((k for k in known.values() if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
+        if match and match.quake is not q and raise_peak(match, q):
+            touched.append(match)
+    return touched
+
+
+def effective_mag(k: Known) -> float:
+    return max(k.quake.mag, k.peak_mag or 0.0)
+
+
+def effective(k: Known) -> IgcQuake:
+    """The quake with the highest magnitude IGC gave it, to decide on announcing."""
+    return k.quake if effective_mag(k) == k.quake.mag else replace(k.quake, mag=effective_mag(k))
+
+
+def known_signature(k: Known) -> str:
+    """What the message shows: the quake, and the higher magnitude if there is one."""
+    sig = signature(k.quake)
+    return f"{sig}|p{k.peak_mag:.1f}" if k.peak_mag and k.peak_mag > k.quake.mag else sig
+
+
+_CHANNEL = {"emsc": "en lo que envió a EMSC", "x": "en X", "whatsapp": "por WhatsApp", "igc": "en su lista"}
+
+
+def peak_note(k: Known) -> str | None:
+    if not k.peak_mag or k.peak_mag <= k.quake.mag:
+        return None
+    return f"ℹ️ <i>El IGC también lo reportó como M{k.peak_mag:.1f} ({_CHANNEL.get(k.peak_src, 'en otra publicación')}).</i>"
+
+
+def message_for(k: Known) -> str:
+    note = peak_note(k)
+    return message(k.quake) + (f"\n\n{note}" if note else "")
 
 
 # Towns where people would feel it (the island of Coiba has almost nobody). The capital
@@ -119,7 +178,7 @@ def to_notify(new: list[Known], *, min_mag: float, max_age_min: float, max_km: f
     now = now or datetime.now(timezone.utc)
     lat, lon, _ = PANAMA_CITY
     keep = [k for k in new
-            if significant(k.quake, min_mag, min_mmi)
+            if significant(effective(k), min_mag, min_mmi)
             and now - k.quake.time <= timedelta(minutes=max_age_min)
             and epicentral_km(lat, lon, k.quake.lat, k.quake.lon) <= max_km]
     return sorted(keep, key=lambda k: k.quake.time)

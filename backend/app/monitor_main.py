@@ -58,7 +58,8 @@ from aiohttp import web
 from .feeds import origin_from_emsc_feature
 from .intensity import describe
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
-from .monitor import (Known, MergeResult, _clock, _esc, _place, buttons, significant, strongest_town, cluster_note, edited_footer, feed, merge, merge_backup, message,
+from .monitor import (Known, MergeResult, _clock, _esc, _place, apply_peaks, buttons, effective, known_signature, message_for,
+                      significant, strongest_town, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
 
@@ -209,7 +210,8 @@ class State:
     def dumps(self) -> str:
         return json.dumps({
             "etag": self.etag, "last_ok": self.last_ok, **{k: getattr(self, k) for k in self._EXTRA},
-            "known": [{"id": k.id, "message_id": k.message_id, "sent": k.sent_signature, "quake": _q_to_dict(k.quake)}
+            "known": [{"id": k.id, "message_id": k.message_id, "sent": k.sent_signature, "quake": _q_to_dict(k.quake),
+                       **({"peak": k.peak_mag, "peak_src": k.peak_src} if k.peak_mag else {})}
                       for k in self.known.values()],
         })
 
@@ -218,7 +220,7 @@ class State:
         if not text:
             return cls()
         d = json.loads(text)
-        known = {k["id"]: Known(k["id"], _q_from_dict(k["quake"]), k.get("message_id"), k.get("sent"))
+        known = {k["id"]: Known(k["id"], _q_from_dict(k["quake"]), k.get("message_id"), k.get("sent"), k.get("peak"), k.get("peak_src"))
                  for k in d.get("known", [])}
         st = cls(d.get("etag"), known, d.get("last_ok"))
         for k in cls._EXTRA:
@@ -288,35 +290,42 @@ def loud(q: IgcQuake) -> bool:
 
 
 async def announce(tg, before: dict[str, Known], res: MergeResult, max_age: float | None = None) -> tuple[int, int]:
-    """New quakes worth a message get one; revised ones get their message edited and a
-    silent reply saying what changed. Returns (sent, edited)."""
+    """New quakes worth a message get one (judged by the highest magnitude IGC gave
+    them anywhere); revised ones get their message edited. Returns (sent, edited)."""
     sent = edited = 0
-    due = to_notify(res.new + [k for k in res.changed if k.message_id is None],
-                    min_mag=CFG["min_mag"], min_mmi=CFG["min_mmi"], max_age_min=max_age or CFG["max_age"], max_km=CFG["max_km"])
+    seen, pending = set(), []
+    for k in res.new + res.changed + res.peaked:
+        if k.message_id is None and id(k) not in seen:
+            seen.add(id(k))
+            pending.append(k)
+    due = to_notify(pending, min_mag=CFG["min_mag"], min_mmi=CFG["min_mmi"], max_age_min=max_age or CFG["max_age"], max_km=CFG["max_km"])
     for k in due:
-        text = message(k.quake)
+        text = message_for(k)
         near = nearby_earlier(k.quake, list(res.known.values()))
         if near:
             text += "\n\n" + cluster_note(k.quake, near.quake)
-        k.message_id = await tg.send(text, silent=not loud(k.quake), reply_to=near.message_id if near else None,
+        k.message_id = await tg.send(text, silent=not loud(effective(k)), reply_to=near.message_id if near else None,
                                      buttons=buttons(k.quake, CFG["dashboard"]))
-        k.sent_signature = signature(k.quake)
+        k.sent_signature = known_signature(k)
         sent += 1
-    for k in res.changed:
-        if k.message_id and k.sent_signature != signature(k.quake):
-            old = before[k.id].quake
-            # The original message is edited to show the current data, with a last line
-            # saying what it said before. Editing notifies nobody; a reply with the full
-            # before → after only goes out if REVISION_REPLIES is on.
-            note = revision_note(old, k.quake)
-            # With nothing a reader would notice (a nudge of the coordinates, or IGC's list
-            # confirming a relayed notice), the message is just refreshed, without "Editado".
-            footer = "\n\n" + edited_footer(old, k.quake) if note else ""
-            await tg.edit(k.message_id, message(k.quake) + footer, buttons(k.quake, CFG["dashboard"]))
-            if note and CFG["revision_replies"]:
-                await tg.send(note, silent=True, reply_to=k.message_id)
-            k.sent_signature = signature(k.quake)
-            edited += 1
+    done = set()
+    for k in res.changed + res.peaked:
+        if not k.message_id or id(k) in done or k.sent_signature == known_signature(k):
+            continue
+        done.add(id(k))
+        old = before[k.id].quake if k.id in before else k.quake
+        # The original message is edited to show the current data, with a last line
+        # saying what it said before. Editing notifies nobody; a reply with the full
+        # before → after only goes out if REVISION_REPLIES is on.
+        note = revision_note(old, k.quake)
+        # With nothing a reader would notice (a nudge of the coordinates, or IGC's list
+        # confirming a relayed notice), the message is just refreshed, without "Editado".
+        footer = "\n\n" + edited_footer(old, k.quake) if note else ""
+        await tg.edit(k.message_id, message_for(k) + footer, buttons(k.quake, CFG["dashboard"]))
+        if note and CFG["revision_replies"]:
+            await tg.send(note, silent=True, reply_to=k.message_id)
+        k.sent_signature = known_signature(k)
+        edited += 1
     return sent, edited
 
 
@@ -433,10 +442,13 @@ async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool)
         changed = {id(k.quake) for k in res.changed}
         for pid, q in quakes.items():
             k = new.get(id(q))
+            peaked = next((x for x in res.peaked if x.peak_mag == q.mag and same_quake(q, x.quake.time, x.quake.lat, x.quake.lon)), None)
             entries[pid]["result"] = (
                 "publicado" if k and k.message_id else
                 "no se publica: " + skip_reason(q, CFG["max_age"], now) if k else
-                "actualizó el mensaje" if id(q) in changed else "ya estaba")
+                "actualizó el mensaje" if id(q) in changed else
+                (f"aquí el IGC le dio M{q.mag:.1f}, más que en su lista: " + ("publicado" if peaked.message_id else "no se publica: " + skip_reason(q, CFG["max_age"], now)))
+                if peaked else "ya estaba")
         summary.update(new=len(res.new), sent=sent, edited=edited)
     except Exception as e:  # noqa: BLE001
         log.exception("X posts failed")
@@ -468,6 +480,13 @@ async def tick(app: web.Application) -> dict:
         try:
             x = await x_tick(app, state, now, fresh)  # IGC's posts on X: usually the first to know
             summary = await igc_tick(app, state, now, fresh)
+            if summary.get("igc") not in ("down", "stale") and not fresh:
+                # IGC's own list is working: EMSC only tells us if IGC gave a quake a
+                # higher magnitude there (it has happened: M4.0 on the list, M4.7 at EMSC).
+                peaks = await emsc_peaks(app, state, now)
+                if peaks:
+                    summary["emsc_peaks"] = peaks
+                    summary["changed"] = True
         finally:
             await archive.flush(app["store"])
             await write_recent(app["store"], state, now)
@@ -475,6 +494,22 @@ async def tick(app: web.Application) -> dict:
             summary["x"] = x
             summary["changed"] = summary["changed"] or bool(x.get("new") or x.get("edited"))
         return summary
+
+
+async def emsc_peaks(app: web.Application, state: State, now: datetime) -> dict | None:
+    try:
+        others = await fetch_emsc_igc(app["session"], now)
+    except Exception as e:  # noqa: BLE001 - EMSC is only a check here
+        log.info("EMSC check failed: %s", e)
+        return None
+    touched = apply_peaks(state.known, others)
+    if not touched:
+        return None
+    for k in touched:
+        archive_of(app).add("emsc", now, k.quake, note=f"el IGC le dio M{k.peak_mag:.1f} en EMSC")
+    sent, edited = await announce(app["telegram"], dict(state.known), MergeResult(known=state.known, peaked=touched))
+    await _save(app["store"], state)
+    return {"raised": len(touched), "sent": sent, "edited": edited}
 
 
 async def igc_tick(app: web.Application, state: State, now: datetime, fresh: bool) -> dict:
