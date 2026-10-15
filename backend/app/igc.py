@@ -211,7 +211,9 @@ def parse_notice(text: str, url: str = RELAY_URL) -> IgcQuake:
 
     The location comes from the town, distance and direction (a few km off at
     most), or from a "lat, lon" line if one is added."""
-    t = re.sub(r"[*_~]", "", text)
+    # Posts on X with a picture (IGC's map) end with a t.co link; WhatsApp may add others.
+    t = re.sub(r"https?://\S+", "", text)
+    t = re.sub(r"[*_~]", "", t)
     missing = []
     estado = _field(t, "estado", r"([A-Za-zÁÉÍÓÚáéíóú]+)")
     fecha = _field(t, "fecha", r"(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{4})")

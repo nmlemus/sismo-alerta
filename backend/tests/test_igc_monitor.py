@@ -513,10 +513,12 @@ async def test_posts_on_x(tmp_path):
         first = await monitor_main.tick(app)
         assert first["x"] == {"posts": 2, "quakes": 1, "new": 1, "sent": 0, "edited": 0} and tg.sent == []  # learns only
         assert x["calls"] == [None]
-        # IGC posts a new quake on X: announced at once, with a link to the post
-        x["posts"].append(("102", _post(t, 4.5, "18km al noroeste de Tonosí")))
+        # IGC posts a new quake on X (with its map: the API adds a t.co link): announced at once
+        x["posts"].append(("102", _post(t, 4.5, "18km al noroeste de Tonosí") + " https://t.co/AbC123xyz"))
         second = await monitor_main.tick(app)
         assert second["x"]["sent"] == 1 and x["calls"][-1] == "101"
+        assert app["state"].x_log[0]["id"] == "102" and app["state"].x_log[0]["result"] == "publicado M4.5"
+        assert app["state"].x_log[-1]["result"].startswith("no es un aviso: falta fecha")  # the pinned-style post
         assert "M4.5" in tg.sent[0][0] and "publicación del IGC en X" in tg.sent[0][0]
         assert tg.buttons[0][0][0] == {"text": "𝕏 Publicación del IGC", "url": "https://x.com/igcpanamaup/status/102"}
         # nothing new on X: nothing read, nothing sent
@@ -533,6 +535,47 @@ async def test_posts_on_x(tmp_path):
         monitor_main.CFG["x_api"] = "http://127.0.0.1:1/2"
         fifth = await monitor_main.tick(app)
         assert "error" in fifth["x"] and fifth["changed"] is False
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
+        monitor_main.CFG.clear()
+        monitor_main.CFG.update(cfg)
+
+
+@pytest.mark.asyncio
+async def test_x_post_kept_when_telegram_fails(tmp_path):
+    """A Telegram error must not lose the post: the quake is stored and X moves on."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+
+    class BrokenTelegram(FakeTelegram):
+        async def send(self, *a, **k):
+            raise RuntimeError("Telegram sendMessage: Bad Request")
+
+    async def tweets(request):
+        return web.json_response({"data": [{"id": "500", "text": _post(now - timedelta(minutes=1), 4.2, "10km al sur de Tonosí") + " https://t.co/x"}]})
+
+    srv = web.Application()
+    srv.router.add_get("/2/users/77/tweets", tweets)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    cfg = dict(monitor_main.CFG)
+    monitor_main.CFG.update(x_api=f"http://127.0.0.1:{port}/2", x_token="xt")
+    app = monitor_main.make_app()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), BrokenTelegram()
+    state = monitor_main.State(x_user_id="77", x_since_id="1", x_version=1)  # an older version: re-reads
+    state.known = {"igc-1": monitor_main.Known("igc-1", parse_list(_page([(now - timedelta(hours=1), 7.6, -80.7, 4.0, True)]))[0])}
+    app["state"] = state
+    try:
+        r = await monitor_main.x_tick(app, state, now, fresh=False)
+        assert "error" in r and state.x_since_id == "500" and state.x_version == monitor_main.X_VERSION
+        assert any(k.quake.url.endswith("/status/500") for k in state.known.values())
+        assert "error: Telegram" in state.x_log[0]["result"]
         for fn in app.on_cleanup:
             await fn(app)
     finally:

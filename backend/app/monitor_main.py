@@ -51,7 +51,7 @@ from aiohttp import web
 
 from .feeds import origin_from_emsc_feature
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
-from .monitor import (Known, MergeResult, _clock, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
+from .monitor import (Known, MergeResult, _clock, _esc, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
 
@@ -146,8 +146,11 @@ class State:
     x_user_id: str | None = None  # IGC's account on X
     x_since_id: str | None = None  # newest post already read
     x_last_ok: str | None = None
+    x_version: int | None = None  # X_VERSION that read up to x_since_id
+    x_log: list = field(default_factory=list)  # what was done with the latest posts, newest first
 
-    _EXTRA = ("last_change", "down_since", "down_reason", "down_notice_id", "x_user_id", "x_since_id", "x_last_ok")
+    _EXTRA = ("last_change", "down_since", "down_reason", "down_notice_id", "x_user_id", "x_since_id", "x_last_ok",
+              "x_version", "x_log")
 
     def dumps(self) -> str:
         return json.dumps({
@@ -166,6 +169,7 @@ class State:
         st = cls(d.get("etag"), known, d.get("last_ok"))
         for k in cls._EXTRA:
             setattr(st, k, d.get(k))
+        st.x_log = st.x_log or []
         return st
 
 
@@ -294,9 +298,13 @@ async def load_state(app: web.Application) -> State:
     return app["state"]
 
 
+X_VERSION = 2  # bump to re-read the latest posts once after a fix in how they're handled
+
+
 async def fetch_x(session: aiohttp.ClientSession, state: State) -> list[tuple[str, str]]:
     """IGC's posts on X newer than the last one read, oldest first, as (id, text).
-    The first time it only reads the latest few (to learn where to start)."""
+    The first time it reads the latest few. It doesn't move x_since_id: the caller
+    does, once the posts are handled."""
     headers = {"Authorization": f"Bearer {CFG['x_token']}", "User-Agent": CFG["agent"]}
     timeout = aiohttp.ClientTimeout(total=15)
     if not state.x_user_id:
@@ -311,37 +319,60 @@ async def fetch_x(session: aiohttp.ClientSession, state: State) -> list[tuple[st
         r.raise_for_status()
         body = await r.json()
     posts = body.get("data") or []
-    if posts:
-        state.x_since_id = max((p["id"] for p in posts), key=int)
-    return sorted(((p["id"], (p.get("note_tweet") or {}).get("text") or p.get("text") or "") for p in posts), key=lambda p: int(p[0]))
+    return sorted(((p["id"], html.unescape((p.get("note_tweet") or {}).get("text") or p.get("text") or ""))
+                   for p in posts), key=lambda p: int(p[0]))
 
 
 async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool) -> dict | None:
     """New IGC posts on X go through the same rules as its list: announced if new,
-    edited if they revise an announced quake. Posts that aren't quake notices are skipped."""
+    edited if they revise an announced quake. Posts that aren't quake notices are skipped.
+    What happened to each post is kept in state.x_log (state.json, /estado)."""
     if not CFG["x_token"]:
         return None
+    if state.x_version != X_VERSION:
+        state.x_since_id, state.x_version = None, X_VERSION
     try:
         posts = await fetch_x(app["session"], state)
     except Exception as e:  # noqa: BLE001 - X down or out of credit: IGC's list still works
         log.warning("X failed: %s", e)
         return {"error": str(e)}
     state.x_last_ok = _iso(now)
-    quakes = []
+    if not posts:
+        return {"posts": 0, "quakes": 0}
+    entries, quakes = {}, {}
     for pid, text in posts:
+        head = " ".join(text.split())[:90]
         try:
-            quakes.append(parse_notice(text, f"https://x.com/{CFG['x_user']}/status/{pid}"))
-        except NoticeError:
-            continue  # not a quake notice (or a place we don't know)
-    if not quakes:
-        if posts:
-            await app["store"].write("igc/state.json", state.dumps())
-        return {"posts": len(posts), "quakes": 0}
-    res = merge_backup(state.known, quakes)
-    sent, edited = (0, 0) if fresh else await announce(app["telegram"], state.known, res)
-    state.known = res.known
-    await _save(app["store"], state)
-    return {"posts": len(posts), "quakes": len(quakes), "new": len(res.new), "sent": sent, "edited": edited}
+            quakes[pid] = parse_notice(text, f"https://x.com/{CFG['x_user']}/status/{pid}")
+            entries[pid] = {"id": pid, "seen": _iso(now), "text": head, "result": "leído"}
+        except Exception as e:  # noqa: BLE001 - one odd post never stops the others
+            entries[pid] = {"id": pid, "seen": _iso(now), "text": head, "result": f"no es un aviso: {e}"}
+    summary = {"posts": len(posts), "quakes": len(quakes)}
+    try:
+        before = state.known
+        res = merge_backup(before, list(quakes.values()))
+        state.known = res.known  # first, so nothing read is lost if Telegram fails below
+        sent, edited = (0, 0) if fresh else await announce(app["telegram"], before, res)
+        new = {id(k.quake): k for k in res.new}
+        changed = {id(k.quake) for k in res.changed}
+        for pid, q in quakes.items():
+            k = new.get(id(q))
+            entries[pid]["result"] = (
+                f"publicado M{q.mag:.1f}" if k and k.message_id else
+                f"guardado M{q.mag:.1f}, sin publicar (filtros)" if k else
+                f"actualizó el mensaje M{q.mag:.1f}" if id(q) in changed else f"ya estaba M{q.mag:.1f}")
+        summary.update(new=len(res.new), sent=sent, edited=edited)
+    except Exception as e:  # noqa: BLE001
+        log.exception("X posts failed")
+        for pid in quakes:
+            entries[pid]["result"] += f"; error: {e}"
+        summary["error"] = str(e)
+    finally:
+        state.x_since_id = max((pid for pid, _ in posts), key=int)
+        state.x_log = (sorted(entries.values(), key=lambda e: int(e["id"]), reverse=True) + state.x_log)[:15]
+        await _save(app["store"], state)
+    log.info("X %s", summary)
+    return summary
 
 
 async def tick(app: web.Application) -> dict:
@@ -439,6 +470,8 @@ def status_text(state: State, now: datetime) -> str:
         head = f"✅ La lista del IGC funciona; última lectura a las {local(state.last_ok)}."
     if CFG["x_token"]:
         head += f"\nX (@{CFG['x_user']}): última lectura a las {local(state.x_last_ok)}."
+        for e in state.x_log[:3]:
+            head += f"\n  • {_esc(e['text'][60:90] or e['text'][:30])}… → {_esc(e['result'])}"
     recent = [k for k in state.known.values() if now - k.quake.time <= timedelta(hours=24)]
     return f"{head}\n\nSismos de las últimas 24 h: {len(recent)}; en el canal: {sum(1 for k in recent if k.message_id)}."
 
