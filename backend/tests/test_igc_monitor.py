@@ -458,3 +458,84 @@ async def test_relay_from_whatsapp_through_the_bot(tmp_path):
         await runner.cleanup()
         monitor_main.CFG.clear()
         monitor_main.CFG.update(cfg)
+
+
+# ---------------------------------------------------------------- IGC's posts on X
+
+def _post(t, mag, place, estado="PRELIMINAR"):
+    local = t.astimezone(PANAMA_TZ)
+    return ("El Instituto de Geociencias de la Universidad de Panamá,\nReporta el siguiente evento:\n"
+            f"Estado: {estado}\nFecha: {local:%Y-%m-%d}\nHora: {local:%I:%M:%S%p} hora local\n"
+            f"Magnitud: {mag}\nProfundidad: 10km\nLocalizado en Panamá a {place}")
+
+
+@pytest.mark.asyncio
+async def test_posts_on_x(tmp_path):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    t = now - timedelta(minutes=2)
+    x = {"posts": [("100", "#culturasismica Presentamos el significado del ESTADO"),
+                   ("101", _post(now - timedelta(hours=3), 4.1, "6km al noroeste de Tonosí", "REVISADO"))],
+         "calls": []}
+    igc_state = {"etag": '"v1"', "body": _page([(now - timedelta(hours=5), 7.6, -80.7, 4.0, True)])}
+
+    async def igc(request):
+        if request.headers.get("If-None-Match") == igc_state["etag"]:
+            return web.Response(status=304)
+        return web.Response(text=igc_state["body"], content_type="text/html", headers={"ETag": igc_state["etag"]})
+
+    async def user(request):
+        assert request.headers["Authorization"] == "Bearer xt"
+        return web.json_response({"data": {"id": "77", "username": "igcpanamaup"}})
+
+    async def tweets(request):
+        since = int(request.query.get("since_id", "0"))
+        x["calls"].append(request.query.get("since_id"))
+        data = [{"id": i, "text": txt} for i, txt in x["posts"] if int(i) > since]
+        return web.json_response({"data": data} if data else {"meta": {"result_count": 0}})
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/2/users/by/username/igcpanamaup", user)
+    srv.router.add_get("/2/users/77/tweets", tweets)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    cfg = dict(monitor_main.CFG)
+    monitor_main.CFG.update(igc_url=f"http://127.0.0.1:{port}/", x_api=f"http://127.0.0.1:{port}/2", x_token="xt")
+    app = monitor_main.make_app()
+    tg = FakeTelegram()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    try:
+        first = await monitor_main.tick(app)
+        assert first["x"] == {"posts": 2, "quakes": 1, "new": 1, "sent": 0, "edited": 0} and tg.sent == []  # learns only
+        assert x["calls"] == [None]
+        # IGC posts a new quake on X: announced at once, with a link to the post
+        x["posts"].append(("102", _post(t, 4.5, "18km al noroeste de Tonosí")))
+        second = await monitor_main.tick(app)
+        assert second["x"]["sent"] == 1 and x["calls"][-1] == "101"
+        assert "M4.5" in tg.sent[0][0] and "publicación del IGC en X" in tg.sent[0][0]
+        assert tg.buttons[0][0][0] == {"text": "𝕏 Publicación del IGC", "url": "https://x.com/igcpanamaup/status/102"}
+        # nothing new on X: nothing read, nothing sent
+        third = await monitor_main.tick(app)
+        assert third["x"] == {"posts": 0, "quakes": 0} and len(tg.sent) == 1
+        # IGC posts the REVISADO version: the same message is edited
+        x["posts"].append(("103", _post(t, 4.4, "18km al noroeste de Tonosí", "REVISADO")))
+        fourth = await monitor_main.tick(app)
+        assert fourth["x"]["edited"] == 1 and "M4.4" in tg.edits[-1][1] and tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>")
+        # the same notice forwarded from WhatsApp is recognised
+        q_wa = __import__("app.igc", fromlist=["parse_notice"]).parse_notice(_post(t, 4.4, "18km al noroeste de Tonosí", "REVISADO"))
+        assert (await monitor_main.relay_notice(app, q_wa)).startswith("👍 Ya estaba en el canal")
+        # X down: the tick goes on with IGC's list
+        monitor_main.CFG["x_api"] = "http://127.0.0.1:1/2"
+        fifth = await monitor_main.tick(app)
+        assert "error" in fifth["x"] and fifth["changed"] is False
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
+        monitor_main.CFG.clear()
+        monitor_main.CFG.update(cfg)

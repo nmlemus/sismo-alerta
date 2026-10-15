@@ -26,6 +26,10 @@ Environment:
   RELAY_USERS          Who may relay IGC's WhatsApp notices to the bot, in a private chat:
                        Telegram usernames (@noel) or numeric ids, comma-separated.
   RELAY_MAX_AGE_MIN    180   A relayed notice is published if the quake is at most this old.
+  X_BEARER_TOKEN       X API token (developer.x.com, pay-per-use). With it, every tick reads
+                       IGC's new posts on X (same text as its WhatsApp notices, minutes
+                       before its web list). Only new posts are read, so it costs cents a day.
+  X_USERNAME           igcpanamaup
 """
 
 from __future__ import annotations
@@ -69,6 +73,9 @@ CFG = {
     "key": ENV("MONITOR_KEY", ""),
     "relay_users": {u.strip().lstrip("@").lower() for u in ENV("RELAY_USERS", "").split(",") if u.strip()},
     "relay_max_age": float(ENV("RELAY_MAX_AGE_MIN", "180")),
+    "x_token": ENV("X_BEARER_TOKEN", ""),
+    "x_user": ENV("X_USERNAME", "igcpanamaup"),
+    "x_api": ENV("X_API_URL", "https://api.x.com/2"),
     "agent": ENV("USER_AGENT", "SismoAlerta/1.0 (+https://github.com/nmlemus/sismo-alerta; checks once a minute with ETag)"),
 }
 
@@ -136,8 +143,11 @@ class State:
     down_since: str | None = None  # IGC's list unavailable since then
     down_reason: str | None = None
     down_notice_id: int | None = None  # the channel message that says so
+    x_user_id: str | None = None  # IGC's account on X
+    x_since_id: str | None = None  # newest post already read
+    x_last_ok: str | None = None
 
-    _EXTRA = ("last_change", "down_since", "down_reason", "down_notice_id")
+    _EXTRA = ("last_change", "down_since", "down_reason", "down_notice_id", "x_user_id", "x_since_id", "x_last_ok")
 
     def dumps(self) -> str:
         return json.dumps({
@@ -262,7 +272,8 @@ def _duration(minutes: float) -> str:
 def down_notice(reason: str) -> str:
     return ("⚠️ <b>La lista de sismos del IGC no está disponible</b>\n\n"
             f"Motivo: {reason[:1].lower() + reason[1:]}\n\n"
-            "Mientras tanto, los avisos salen con los datos del IGC que publica EMSC, unos minutos más tarde.")
+            + ("Mientras tanto, los avisos salen de las publicaciones del IGC en X." if CFG["x_token"] else
+               "Mientras tanto, los avisos salen con los datos del IGC que publica EMSC, unos minutos más tarde."))
 
 
 def back_notice(minutes: float) -> str:
@@ -283,38 +294,99 @@ async def load_state(app: web.Application) -> State:
     return app["state"]
 
 
+async def fetch_x(session: aiohttp.ClientSession, state: State) -> list[tuple[str, str]]:
+    """IGC's posts on X newer than the last one read, oldest first, as (id, text).
+    The first time it only reads the latest few (to learn where to start)."""
+    headers = {"Authorization": f"Bearer {CFG['x_token']}", "User-Agent": CFG["agent"]}
+    timeout = aiohttp.ClientTimeout(total=15)
+    if not state.x_user_id:
+        async with session.get(f"{CFG['x_api']}/users/by/username/{CFG['x_user']}", headers=headers, timeout=timeout) as r:
+            r.raise_for_status()
+            state.x_user_id = (await r.json())["data"]["id"]
+    params = {"max_results": "20" if state.x_since_id else "10", "exclude": "replies,retweets",
+              "tweet.fields": "created_at,note_tweet"}
+    if state.x_since_id:
+        params["since_id"] = state.x_since_id
+    async with session.get(f"{CFG['x_api']}/users/{state.x_user_id}/tweets", params=params, headers=headers, timeout=timeout) as r:
+        r.raise_for_status()
+        body = await r.json()
+    posts = body.get("data") or []
+    if posts:
+        state.x_since_id = max((p["id"] for p in posts), key=int)
+    return sorted(((p["id"], (p.get("note_tweet") or {}).get("text") or p.get("text") or "") for p in posts), key=lambda p: int(p[0]))
+
+
+async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool) -> dict | None:
+    """New IGC posts on X go through the same rules as its list: announced if new,
+    edited if they revise an announced quake. Posts that aren't quake notices are skipped."""
+    if not CFG["x_token"]:
+        return None
+    try:
+        posts = await fetch_x(app["session"], state)
+    except Exception as e:  # noqa: BLE001 - X down or out of credit: IGC's list still works
+        log.warning("X failed: %s", e)
+        return {"error": str(e)}
+    state.x_last_ok = _iso(now)
+    quakes = []
+    for pid, text in posts:
+        try:
+            quakes.append(parse_notice(text, f"https://x.com/{CFG['x_user']}/status/{pid}"))
+        except NoticeError:
+            continue  # not a quake notice (or a place we don't know)
+    if not quakes:
+        if posts:
+            await app["store"].write("igc/state.json", state.dumps())
+        return {"posts": len(posts), "quakes": 0}
+    res = merge_backup(state.known, quakes)
+    sent, edited = (0, 0) if fresh else await announce(app["telegram"], state.known, res)
+    state.known = res.known
+    await _save(app["store"], state)
+    return {"posts": len(posts), "quakes": len(quakes), "new": len(res.new), "sent": sent, "edited": edited}
+
+
 async def tick(app: web.Application) -> dict:
     async with app["lock"]:
-        store, tg, session = app["store"], app["telegram"], app["session"]
         state = await load_state(app)
         now = datetime.now(timezone.utc).replace(microsecond=0)
-        try:
-            quakes, etag = await fetch_igc(session, state.etag)
-        except (IgcUnavailable, aiohttp.ClientError, asyncio.TimeoutError) as e:
-            reason = str(e) if isinstance(e, IgcUnavailable) else "la página no responde"
-            return await backup_tick(app, state, now, reason)
-        if quakes is None:
-            if state.last_change and _minutes_since(state.last_change, now) >= CFG["stale_min"]:
-                return await backup_tick(app, state, now, None)  # IGC's page has stopped changing
-            return {"changed": False}
-
-        first_run = not state.known
-        res = merge(state.known, quakes, now=now)
-        sent, edited = (0, 0) if first_run else await announce(tg, state.known, res)  # the first look only learns
-        state.known, state.etag = res.known, etag
-        state.last_ok = state.last_change = _iso(now)
-        if state.down_since:
-            if state.down_notice_id:
-                await tg.send(back_notice(_minutes_since(state.down_since, now)), silent=True, reply_to=state.down_notice_id)
-            state.down_since = state.down_reason = state.down_notice_id = None
-        await _save(store, state)
-        summary = {"changed": True, "quakes": len(quakes), "new": len(res.new), "revised": len(res.changed),
-                   "sent": sent, "edited": edited, "first_run": first_run}
-        log.info("tick %s", summary)
+        fresh = not state.known  # the first look only learns what's there, without announcing it
+        x = await x_tick(app, state, now, fresh)  # IGC's posts on X: usually the first to know
+        summary = await igc_tick(app, state, now, fresh)
+        if x is not None:
+            summary["x"] = x
+            summary["changed"] = summary["changed"] or bool(x.get("new") or x.get("edited"))
         return summary
 
 
-async def backup_tick(app: web.Application, state: State, now: datetime, reason: str | None) -> dict:
+async def igc_tick(app: web.Application, state: State, now: datetime, fresh: bool) -> dict:
+    """IGC's web list: new quakes and revisions; EMSC as backup when it is down."""
+    store, tg, session = app["store"], app["telegram"], app["session"]
+    try:
+        quakes, etag = await fetch_igc(session, state.etag)
+    except (IgcUnavailable, aiohttp.ClientError, asyncio.TimeoutError) as e:
+        reason = str(e) if isinstance(e, IgcUnavailable) else "la página no responde"
+        return await backup_tick(app, state, now, reason, fresh)
+    if quakes is None:
+        if state.last_change and _minutes_since(state.last_change, now) >= CFG["stale_min"]:
+            return await backup_tick(app, state, now, None, fresh)  # IGC's page has stopped changing
+        return {"changed": False}
+
+    first_run = fresh
+    res = merge(state.known, quakes, now=now)
+    sent, edited = (0, 0) if first_run else await announce(tg, state.known, res)  # the first look only learns
+    state.known, state.etag = res.known, etag
+    state.last_ok = state.last_change = _iso(now)
+    if state.down_since:
+        if state.down_notice_id:
+            await tg.send(back_notice(_minutes_since(state.down_since, now)), silent=True, reply_to=state.down_notice_id)
+        state.down_since = state.down_reason = state.down_notice_id = None
+    await _save(store, state)
+    summary = {"changed": True, "quakes": len(quakes), "new": len(res.new), "revised": len(res.changed),
+               "sent": sent, "edited": edited, "first_run": first_run}
+    log.info("tick %s", summary)
+    return summary
+
+
+async def backup_tick(app: web.Application, state: State, now: datetime, reason: str | None, fresh: bool = False) -> dict:
     """IGC's list can't be read (reason) or has stopped changing (None): announce the
     IGC quakes EMSC relays, and tell the channel once if IGC stays down. When IGC's
     list is back, merge() matches these quakes with IGC's rows and edits the messages."""
@@ -326,7 +398,7 @@ async def backup_tick(app: web.Application, state: State, now: datetime, reason:
         log.warning("EMSC backup failed: %s", e)
         backup, summary["backup_error"] = None, str(e)
     if backup is not None:
-        first_run = not state.known
+        first_run = fresh
         res = merge_backup(state.known, backup)
         sent, edited = (0, 0) if first_run else await announce(tg, state.known, res)
         state.known = res.known
@@ -365,6 +437,8 @@ def status_text(state: State, now: datetime) -> str:
         head = f"⚠️ La lista del IGC no está disponible desde las {local(state.down_since)} ({state.down_reason})."
     else:
         head = f"✅ La lista del IGC funciona; última lectura a las {local(state.last_ok)}."
+    if CFG["x_token"]:
+        head += f"\nX (@{CFG['x_user']}): última lectura a las {local(state.x_last_ok)}."
     recent = [k for k in state.known.values() if now - k.quake.time <= timedelta(hours=24)]
     return f"{head}\n\nSismos de las últimas 24 h: {len(recent)}; en el canal: {sum(1 for k in recent if k.message_id)}."
 

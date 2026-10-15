@@ -136,10 +136,18 @@ def quake_from_emsc(origin) -> IgcQuake:
 # ---------------------------------------------------------------- IGC's WhatsApp notices, relayed by hand
 
 RELAY_URL = IGC_URL + "#aviso"  # marks a quake taken from a WhatsApp notice
+_X_POST = re.compile(r"^https://x\.com/[^/]+/status/\d+$")
+
+
+def from_x(q: IgcQuake) -> bool:
+    """Taken from IGC's post on X (the url is the post)."""
+    return bool(_X_POST.match(q.url))
 
 
 def from_relay(q: IgcQuake) -> bool:
-    return q.url == RELAY_URL
+    """Taken from one of IGC's notices (WhatsApp, relayed by hand, or X): IGC's own
+    text, with the place worked out from it."""
+    return q.url == RELAY_URL or from_x(q)
 
 
 def source(q: IgcQuake) -> str:
@@ -191,7 +199,7 @@ def _field(text: str, name: str, pattern: str) -> re.Match | None:
     return re.search(rf"{name}\s*:?\s*{pattern}", text, re.I)
 
 
-def parse_notice(text: str) -> IgcQuake:
+def parse_notice(text: str, url: str = RELAY_URL) -> IgcQuake:
     """An IGC WhatsApp notice, pasted or forwarded as is:
 
         Estado: PRELIMINAR
@@ -246,4 +254,4 @@ def parse_notice(text: str) -> IgcQuake:
             lon += km * math.sin(math.radians(bearing)) / (111.2 * math.cos(math.radians(lat)))
     return IgcQuake(when, round(lat, 3), round(lon, 3), float(prof.group(1).replace(",", ".")) if prof else 10.0,
                     round(float(mag.group(1).replace(",", ".")), 1),
-                    bool(estado and estado.group(1).upper().startswith("REVIS")), place_text, RELAY_URL)
+                    bool(estado and estado.group(1).upper().startswith("REVIS")), place_text, url)

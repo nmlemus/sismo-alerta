@@ -8,6 +8,8 @@
 #
 # RELAY_USERS: Telegram usernames or ids (comma-separated) allowed to relay IGC's
 # WhatsApp notices to the bot. Only needed the first time or to change it.
+# X_BEARER_TOKEN: X API token (developer.x.com, pay-per-use) to read IGC's posts on X.
+# Only needed the first time or to change it; it's kept in Secret Manager.
 #
 # Needs: gcloud logged in, a project on the Blaze plan (Cloud Run and Scheduler need
 # billing; this stays within the free tiers). Safe to re-run: it updates in place.
@@ -72,6 +74,18 @@ elif $G secrets describe telegram-bot-token >/dev/null 2>&1; then
   TELEGRAM_BOT_TOKEN=$($G secrets versions access latest --secret telegram-bot-token)
 else
   echo "    (no TELEGRAM_BOT_TOKEN: the monitor will only log what it would send)"
+fi
+
+if [[ -n "${X_BEARER_TOKEN:-}" ]]; then
+  echo "==> X token in Secret Manager"
+  $G secrets describe x-bearer-token >/dev/null 2>&1 || $G secrets create x-bearer-token --replication-policy automatic
+  printf '%s' "$X_BEARER_TOKEN" | $G secrets versions add x-bearer-token --data-file=- >/dev/null
+fi
+if $G secrets describe x-bearer-token >/dev/null 2>&1; then
+  $G secrets add-iam-policy-binding x-bearer-token --member "serviceAccount:$SA" --role roles/secretmanager.secretAccessor >/dev/null
+  SECRETS+=",X_BEARER_TOKEN=x-bearer-token:latest"
+else
+  echo "    (no X_BEARER_TOKEN: IGC's posts on X are not read)"
 fi
 
 echo "==> Cloud Run $SERVICE"

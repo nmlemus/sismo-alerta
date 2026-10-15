@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from .igc import PANAMA_TZ, IgcQuake, from_emsc, from_relay, same_quake, source
+from .igc import PANAMA_TZ, IgcQuake, from_emsc, from_relay, from_x, same_quake, source
 from .intensity import describe, epicentral_km, estimate_mmi
 
 PANAMA_CITY = (8.983, -79.52, 0.6)  # lat, lon, site adjustment (matches the web page)
@@ -152,12 +152,14 @@ def message(q: IgcQuake, dashboard_url: str = "") -> str:
         "",
         f"🏙️ En Ciudad de Panamá: intensidad <b>{describe(mmi)}</b>, estimada",
     ] + (["", "<i>ℹ️ Datos del IGC tomados de EMSC: la lista del IGC no está disponible ahora.</i>"] if from_emsc(q) else
+         ["", "<i>ℹ️ De la publicación del IGC en X; ubicación aproximada.</i>"] if from_x(q) else
          ["", "<i>ℹ️ Del aviso del IGC por WhatsApp; ubicación aproximada.</i>"] if from_relay(q) else []))
 
 
 def buttons(q: IgcQuake, dashboard_url: str) -> list[list[dict]]:
     """Inline buttons under the message (Telegram inline keyboard)."""
-    label = "🗺️ Ficha en EMSC" if from_emsc(q) else "🌐 Sitio del IGC" if from_relay(q) else "🗺️ Ficha del IGC"
+    label = ("🗺️ Ficha en EMSC" if from_emsc(q) else "𝕏 Publicación del IGC" if from_x(q)
+             else "🌐 Sitio del IGC" if from_relay(q) else "🗺️ Ficha del IGC")
     return [[{"text": label, "url": q.url}, {"text": "📈 Réplicas en vivo", "url": dashboard_url}]]
 
 
@@ -205,7 +207,8 @@ def edited_footer(before: IgcQuake) -> str:
     """Last line of an edited message: what it said before, so it reads on its own
     (the reply under it has the full before → after)."""
     state = "revisado" if before.reviewed else "preliminar"
-    via = " (vía EMSC)" if from_emsc(before) else " (aviso por WhatsApp)" if from_relay(before) else ""
+    via = (" (vía EMSC)" if from_emsc(before) else " (aviso en X)" if from_x(before)
+           else " (aviso por WhatsApp)" if from_relay(before) else "")
     return f"<i>✏️ Editado · antes: M{before.mag:.1f} {state}{via}, {_esc(_place(before))}</i>"
 
 
