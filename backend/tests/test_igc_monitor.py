@@ -9,6 +9,17 @@ from app.igc import PANAMA_TZ, parse_list, parse_local_time
 from app.monitor import feed, merge, message, to_notify
 
 PAGE = (Path(__file__).parent / "data" / "igc_list_2026-10-14.html").read_text()
+
+
+@pytest.fixture(autouse=True)
+def old_thresholds():
+    """Most tests were written for "every M3.5+, with sound from M4": keep them on that,
+    and test the "only significant ones" rule on its own below."""
+    saved = dict(monitor_main.CFG)
+    monitor_main.CFG.update(min_mag=3.5, min_mmi=99, loud_mag=4.0, loud_mmi=99)
+    yield
+    monitor_main.CFG.clear()
+    monitor_main.CFG.update(saved)
 NOW = datetime(2026, 10, 14, 7, 0, tzinfo=timezone.utc)
 
 
@@ -639,3 +650,37 @@ async def test_archive_keeps_everything_seen(tmp_path):
         await runner.cleanup()
         monitor_main.CFG.clear()
         monitor_main.CFG.update(cfg)
+
+
+def test_only_significant_quakes_go_to_telegram():
+    from app.monitor import Known, significant, strongest_town, to_notify
+    now = datetime(2026, 10, 15, 19, 0, tzinfo=timezone.utc)
+    q = lambda mag, lat, lon, depth=10.0: __import__("app.igc", fromlist=["IgcQuake"]).IgcQuake(
+        now - timedelta(minutes=2), lat, lon, depth, mag, False, "x", "u")
+    offshore_41 = q(4.1, 7.0, -81.6)   # out at sea, south of Coiba: nobody feels it much
+    under_tonosi = q(4.4, 7.41, -80.44, 5.0)  # under M4.5, but right under a town
+    big = q(4.6, 7.0, -81.6)
+    assert not significant(offshore_41, 4.5, 5) and significant(big, 4.5, 5)
+    town, mmi = strongest_town(under_tonosi)
+    assert town == "Tonosí" and mmi >= 4.5 and significant(under_tonosi, 4.5, 5)
+    due = to_notify([Known(x.id + str(i), x) for i, x in enumerate([offshore_41, under_tonosi, big])],
+                    min_mag=4.5, min_mmi=5, max_age_min=30, max_km=400, now=now)
+    assert [k.quake.mag for k in due] == [4.4, 4.6]
+    # with sound only for strong ones
+    monitor_main.CFG.update(loud_mag=5.5, loud_mmi=6)
+    assert not monitor_main.loud(big) and monitor_main.loud(q(5.6, 7.0, -81.6))
+    # the reason given to whoever relays a small one
+    monitor_main.CFG.update(min_mag=4.5, min_mmi=5)
+    reason = monitor_main.skip_reason(offshore_41, 30, now)
+    assert reason.startswith("M4.1 es menor que M4.5 y no se sentiría moderado en ningún pueblo (lo más fuerte: ") and " en " in reason
+
+
+def test_defaults_are_significant_only():
+    import importlib
+    import os
+    assert os.environ.get("NOTIFY_MIN_MAG") is None
+    fresh = importlib.reload(importlib.import_module("app.monitor_main"))
+    try:
+        assert (fresh.CFG["min_mag"], fresh.CFG["min_mmi"], fresh.CFG["loud_mag"], fresh.CFG["loud_mmi"]) == (4.5, 5.0, 5.5, 6.0)
+    finally:
+        importlib.reload(fresh)

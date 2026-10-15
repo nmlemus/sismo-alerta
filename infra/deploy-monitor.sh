@@ -20,8 +20,10 @@ REGION="${REGION:-us-east1}"
 SERVICE="${SERVICE:-sismo-igc-monitor}"
 BUCKET="${BUCKET:-${PROJECT_ID}-sismo-feed}"
 DASHBOARD_URL="${DASHBOARD_URL:-https://${PROJECT_ID}.web.app}"
-NOTIFY_MIN_MAG="${NOTIFY_MIN_MAG:-3.5}"
-LOUD_MIN_MAG="${LOUD_MIN_MAG:-4.0}"
+NOTIFY_MIN_MAG="${NOTIFY_MIN_MAG:-4.5}"   # Telegram: from M4.5...
+NOTIFY_MIN_MMI="${NOTIFY_MIN_MMI:-5}"     # ...or intensity V (moderate) in some town
+LOUD_MIN_MAG="${LOUD_MIN_MAG:-5.5}"       # with sound from M5.5...
+LOUD_MIN_MMI="${LOUD_MIN_MMI:-6}"         # ...or intensity VI in some town
 NOTIFY_MAX_KM="${NOTIFY_MAX_KM:-400}"
 SA="${SERVICE}@${PROJECT_ID}.iam.gserviceaccount.com"
 SCHED_SA="sismo-scheduler@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -92,7 +94,7 @@ echo "==> Cloud Run $SERVICE"
 # One instance (the state lives in one place); requests take turns inside it. Scales to
 # zero between ticks. Public, because Telegram must reach /telegram: the app checks the
 # key on every route (Scheduler sends it as a header, Telegram as its secret token).
-ENV_VARS="^;^BUCKET=$BUCKET;DASHBOARD_URL=$DASHBOARD_URL;NOTIFY_MIN_MAG=$NOTIFY_MIN_MAG;LOUD_MIN_MAG=$LOUD_MIN_MAG;NOTIFY_MAX_KM=$NOTIFY_MAX_KM"
+ENV_VARS="^;^BUCKET=$BUCKET;DASHBOARD_URL=$DASHBOARD_URL;NOTIFY_MIN_MAG=$NOTIFY_MIN_MAG;NOTIFY_MIN_MMI=$NOTIFY_MIN_MMI;LOUD_MIN_MAG=$LOUD_MIN_MAG;LOUD_MIN_MMI=$LOUD_MIN_MMI;NOTIFY_MAX_KM=$NOTIFY_MAX_KM"
 ENV_VARS+="${TELEGRAM_CHAT_ID:+;TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID}${RELAY_USERS:+;RELAY_USERS=$RELAY_USERS}"
 $G run deploy "$SERVICE" --region "$REGION" --source "$ROOT/backend" \
   --command python --args="-m,app.monitor_main" \

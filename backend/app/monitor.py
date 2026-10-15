@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from .igc import PANAMA_TZ, IgcQuake, from_emsc, from_relay, from_x, same_quake, source
+from .igc import PANAMA_TZ, TOWNS, IgcQuake, from_emsc, from_relay, from_x, same_quake, source
 from .intensity import describe, epicentral_km, estimate_mmi
 
 PANAMA_CITY = (8.983, -79.52, 0.6)  # lat, lon, site adjustment (matches the web page)
@@ -94,13 +94,32 @@ def merge_backup(known: dict[str, Known], backup: list[IgcQuake]) -> MergeResult
     return out
 
 
+# Towns where people would feel it (the island of Coiba has almost nobody). The capital
+# and Colón get the same +0.6 the page uses, from what people reported to USGS.
+FELT_TOWNS = [(name, lat, lon, 0.6 if name in ("Ciudad de Panamá", "Colón") else 0.0)
+              for name, lat, lon in TOWNS if name != "Coiba"]
+
+
+def strongest_town(q: IgcQuake) -> tuple[str, float]:
+    """The town where the quake would be felt most, and the intensity expected there."""
+    return max(((name, estimate_mmi(q.mag, q.depth_km, q.lat, q.lon, lat, lon, adj)) for name, lat, lon, adj in FELT_TOWNS),
+               key=lambda x: x[1])
+
+
+def significant(q: IgcQuake, min_mag: float, min_mmi: float) -> bool:
+    """Big enough, or felt at least at intensity min_mmi in some town (levels are
+    rounded: V starts at 4.5)."""
+    return q.mag >= min_mag or strongest_town(q)[1] >= min_mmi - 0.5
+
+
 def to_notify(new: list[Known], *, min_mag: float, max_age_min: float, max_km: float,
-              now: datetime | None = None) -> list[Known]:
-    """Recent quakes of at least min_mag within max_km of Panama City, oldest first."""
+              min_mmi: float = 99, now: datetime | None = None) -> list[Known]:
+    """Recent significant quakes (min_mag, or min_mmi in some town) within max_km of
+    Panama City, oldest first. The rest only go to the web page."""
     now = now or datetime.now(timezone.utc)
     lat, lon, _ = PANAMA_CITY
     keep = [k for k in new
-            if k.quake.mag >= min_mag
+            if significant(k.quake, min_mag, min_mmi)
             and now - k.quake.time <= timedelta(minutes=max_age_min)
             and epicentral_km(lat, lon, k.quake.lat, k.quake.lon) <= max_km]
     return sorted(keep, key=lambda k: k.quake.time)

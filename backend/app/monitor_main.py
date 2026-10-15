@@ -11,8 +11,12 @@ Environment:
                        Empty: files in ./monitor-data (for local runs).
   TELEGRAM_BOT_TOKEN   Bot token from @BotFather. Empty: messages are only logged.
   TELEGRAM_CHAT_ID     Channel, e.g. @mi_canal or -100123... (the bot must be an admin).
-  NOTIFY_MIN_MAG       3.5   Smallest magnitude announced.
-  LOUD_MIN_MAG         4.0   Below this the message arrives silently.
+  NOTIFY_MIN_MAG       4.5   Announced from this magnitude...
+  NOTIFY_MIN_MMI       5     ...or if some town would feel at least this intensity (V: moderate).
+                             Smaller ones only go to the web page: a message for every small
+                             aftershock causes more worry than it informs.
+  LOUD_MIN_MAG         5.5   With sound from this magnitude...
+  LOUD_MIN_MMI         6     ...or this intensity in some town; the rest arrive silently.
   NOTIFY_MAX_KM        400   Only quakes this close to Panama City.
   NOTIFY_MAX_AGE_MIN   30    Never announce anything older (e.g. after downtime).
   DASHBOARD_URL        Link in every message.
@@ -50,8 +54,9 @@ import aiohttp
 from aiohttp import web
 
 from .feeds import origin_from_emsc_feature
+from .intensity import describe
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
-from .monitor import (Known, MergeResult, _clock, _esc, _place, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
+from .monitor import (Known, MergeResult, _clock, _esc, _place, buttons, significant, strongest_town, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
 
@@ -62,8 +67,10 @@ ENV = os.environ.get
 CFG = {
     "igc_url": ENV("IGC_URL", IGC_URL),
     "bucket": ENV("BUCKET", ""),
-    "min_mag": float(ENV("NOTIFY_MIN_MAG", "3.5")),
-    "loud_mag": float(ENV("LOUD_MIN_MAG", "4.0")),
+    "min_mag": float(ENV("NOTIFY_MIN_MAG", "4.5")),
+    "min_mmi": float(ENV("NOTIFY_MIN_MMI", "5")),
+    "loud_mag": float(ENV("LOUD_MIN_MAG", "5.5")),
+    "loud_mmi": float(ENV("LOUD_MIN_MMI", "6")),
     "max_km": float(ENV("NOTIFY_MAX_KM", "400")),
     "max_age": float(ENV("NOTIFY_MAX_AGE_MIN", "30")),
     "dashboard": ENV("DASHBOARD_URL", "https://sismo-alerta-235ca.web.app"),
@@ -272,18 +279,23 @@ async def fetch_emsc_igc(session: aiohttp.ClientSession, now: datetime) -> list[
     return [quake_from_emsc(o) for o in origins if o.author.upper() == "IGC"]
 
 
+def loud(q: IgcQuake) -> bool:
+    """With sound only for strong ones."""
+    return significant(q, CFG["loud_mag"], CFG["loud_mmi"])
+
+
 async def announce(tg, before: dict[str, Known], res: MergeResult, max_age: float | None = None) -> tuple[int, int]:
     """New quakes worth a message get one; revised ones get their message edited and a
     silent reply saying what changed. Returns (sent, edited)."""
     sent = edited = 0
     due = to_notify(res.new + [k for k in res.changed if k.message_id is None],
-                    min_mag=CFG["min_mag"], max_age_min=max_age or CFG["max_age"], max_km=CFG["max_km"])
+                    min_mag=CFG["min_mag"], min_mmi=CFG["min_mmi"], max_age_min=max_age or CFG["max_age"], max_km=CFG["max_km"])
     for k in due:
         text = message(k.quake)
         near = nearby_earlier(k.quake, list(res.known.values()))
         if near:
             text += "\n\n" + cluster_note(k.quake, near.quake)
-        k.message_id = await tg.send(text, silent=k.quake.mag < CFG["loud_mag"], reply_to=near.message_id if near else None,
+        k.message_id = await tg.send(text, silent=not loud(k.quake), reply_to=near.message_id if near else None,
                                      buttons=buttons(k.quake, CFG["dashboard"]))
         k.sent_signature = signature(k.quake)
         sent += 1
@@ -556,8 +568,10 @@ def status_text(state: State, now: datetime) -> str:
 def skip_reason(q: IgcQuake, max_age: float, now: datetime) -> str:
     """Why a new quake wasn't announced (the rules of to_notify)."""
     reasons = []
-    if q.mag < CFG["min_mag"]:
-        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f}")
+    if not significant(q, CFG["min_mag"], CFG["min_mmi"]):
+        town, mmi = strongest_town(q)
+        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f} y no se sentiría moderado en ningún pueblo "
+                       f"(lo más fuerte: {describe(mmi)} en {town})")
     if now - q.time > timedelta(minutes=max_age):
         reasons.append(f"es de hace más de {max_age:.0f} min")
     if not reasons:
@@ -657,9 +671,9 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
     q = IgcQuake(now - timedelta(minutes=1), 7.55, -80.65, 10.0, max(4.5, CFG["min_mag"]), False,
                  "Localizado en Panamá a 25km al noroeste de Tonosí", CFG["igc_url"])
     state: State = app.get("state") or State()
-    due = to_notify(merge(dict(state.known), [q]).new, min_mag=CFG["min_mag"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
+    due = to_notify(merge(dict(state.known), [q]).new, min_mag=CFG["min_mag"], min_mmi=CFG["min_mmi"], max_age_min=CFG["max_age"], max_km=CFG["max_km"])
     steps = {"passes_filters": bool(due), "telegram": isinstance(tg, Telegram)}
-    mid = await tg.send(TEST_BANNER + message(q), silent=q.mag < CFG["loud_mag"], buttons=buttons(q, CFG["dashboard"]))
+    mid = await tg.send(TEST_BANNER + message(q), silent=not loud(q), buttons=buttons(q, CFG["dashboard"]))
     steps["sent_message_id"] = mid
     if mid is not None and edit_after_s:
         await asyncio.sleep(edit_after_s)
