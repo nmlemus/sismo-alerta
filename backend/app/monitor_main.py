@@ -51,7 +51,7 @@ from aiohttp import web
 
 from .feeds import origin_from_emsc_feature
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
-from .monitor import (Known, MergeResult, _clock, _esc, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
+from .monitor import (Known, MergeResult, _clock, _esc, _place, buttons, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
 
@@ -122,6 +122,49 @@ class GcsStore:
         await asyncio.to_thread(_put)
 
 
+# ---------------------------------------------------------------- archive
+
+class Archive:
+    """Append-only record of everything the monitor sees, so nothing IGC (or anyone)
+    publishes is lost when it's revised, deleted or the page goes down: one JSON line
+    per observation in archive/raw/YYYY-MM-DD.jsonl (UTC day it was seen). The clean
+    catalog is derived from it, so it can always be rebuilt."""
+
+    def __init__(self) -> None:
+        self.pending: list[dict] = []
+
+    def add(self, source_name: str, seen: datetime, quake: IgcQuake | None = None, raw: str | None = None,
+            ref: str | None = None, note: str | None = None) -> None:
+        rec = {"seen": seen.isoformat(timespec="seconds"), "source": source_name}
+        if quake is not None:
+            rec["quake"] = _q_to_dict(quake)
+        if raw is not None:
+            rec["raw"] = raw
+        if ref:
+            rec["ref"] = ref
+        if note:
+            rec["note"] = note
+        self.pending.append(rec)
+
+    async def flush(self, store) -> int:
+        if not self.pending:
+            return 0
+        days: dict[str, list[str]] = {}
+        for rec in self.pending:
+            days.setdefault(rec["seen"][:10], []).append(json.dumps(rec, ensure_ascii=False) + "\n")
+        for day, lines in days.items():
+            name = f"archive/raw/{day}.jsonl"
+            await store.write(name, (await store.read(name) or "") + "".join(lines))
+        n, self.pending = len(self.pending), []
+        return n
+
+
+def archive_of(app: web.Application) -> Archive:
+    if "archive" not in app:
+        app["archive"] = Archive()
+    return app["archive"]
+
+
 # ---------------------------------------------------------------- state
 
 def _q_to_dict(q: IgcQuake) -> dict:
@@ -148,9 +191,10 @@ class State:
     x_last_ok: str | None = None
     x_version: int | None = None  # X_VERSION that read up to x_since_id
     x_log: list = field(default_factory=list)  # what was done with the latest posts, newest first
+    archive_since: str | None = None  # when the archive started (and got everything known then)
 
     _EXTRA = ("last_change", "down_since", "down_reason", "down_notice_id", "x_user_id", "x_since_id", "x_last_ok",
-              "x_version", "x_log")
+              "x_version", "x_log", "archive_since")
 
     def dumps(self) -> str:
         return json.dumps({
@@ -341,12 +385,11 @@ async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool)
         return {"posts": 0, "quakes": 0}
     entries, quakes = {}, {}
     for pid, text in posts:
-        head = " ".join(text.split())[:90]
         try:
-            quakes[pid] = parse_notice(text, f"https://x.com/{CFG['x_user']}/status/{pid}")
-            entries[pid] = {"id": pid, "seen": _iso(now), "text": head, "result": "leído"}
+            q = quakes[pid] = parse_notice(text, f"https://x.com/{CFG['x_user']}/status/{pid}")
+            entries[pid] = {"id": pid, "seen": _iso(now), "text": f"M{q.mag:.1f} {_clock(q.time)}, {_place(q)}", "result": "leído"}
         except Exception as e:  # noqa: BLE001 - one odd post never stops the others
-            entries[pid] = {"id": pid, "seen": _iso(now), "text": head, "result": f"no es un aviso: {e}"}
+            entries[pid] = {"id": pid, "seen": _iso(now), "text": " ".join(text.split())[:50], "result": f"no es un aviso: {e}"}
     summary = {"posts": len(posts), "quakes": len(quakes)}
     try:
         before = state.known
@@ -358,9 +401,9 @@ async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool)
         for pid, q in quakes.items():
             k = new.get(id(q))
             entries[pid]["result"] = (
-                f"publicado M{q.mag:.1f}" if k and k.message_id else
-                f"guardado M{q.mag:.1f}, sin publicar (filtros)" if k else
-                f"actualizó el mensaje M{q.mag:.1f}" if id(q) in changed else f"ya estaba M{q.mag:.1f}")
+                "publicado" if k and k.message_id else
+                "no se publica: " + skip_reason(q, CFG["max_age"], now) if k else
+                "actualizó el mensaje" if id(q) in changed else "ya estaba")
         summary.update(new=len(res.new), sent=sent, edited=edited)
     except Exception as e:  # noqa: BLE001
         log.exception("X posts failed")
@@ -368,6 +411,9 @@ async def x_tick(app: web.Application, state: State, now: datetime, fresh: bool)
             entries[pid]["result"] += f"; error: {e}"
         summary["error"] = str(e)
     finally:
+        for pid, text in posts:
+            archive_of(app).add("x", now, quakes.get(pid), raw=text, ref=f"https://x.com/{CFG['x_user']}/status/{pid}",
+                                note=entries[pid]["result"])
         state.x_since_id = max((pid for pid, _ in posts), key=int)
         state.x_log = (sorted(entries.values(), key=lambda e: int(e["id"]), reverse=True) + state.x_log)[:15]
         await _save(app["store"], state)
@@ -380,8 +426,17 @@ async def tick(app: web.Application) -> dict:
         state = await load_state(app)
         now = datetime.now(timezone.utc).replace(microsecond=0)
         fresh = not state.known  # the first look only learns what's there, without announcing it
-        x = await x_tick(app, state, now, fresh)  # IGC's posts on X: usually the first to know
-        summary = await igc_tick(app, state, now, fresh)
+        archive = archive_of(app)
+        if not state.archive_since:
+            # Start of the archive: everything known so far (IGC's list keeps only 7 days).
+            for k in sorted(state.known.values(), key=lambda k: k.quake.time):
+                archive.add(source(k.quake), now, k.quake, note="conocido al empezar el archivo")
+            state.archive_since = _iso(now)
+        try:
+            x = await x_tick(app, state, now, fresh)  # IGC's posts on X: usually the first to know
+            summary = await igc_tick(app, state, now, fresh)
+        finally:
+            await archive.flush(app["store"])
         if x is not None:
             summary["x"] = x
             summary["changed"] = summary["changed"] or bool(x.get("new") or x.get("edited"))
@@ -403,6 +458,8 @@ async def igc_tick(app: web.Application, state: State, now: datetime, fresh: boo
 
     first_run = fresh
     res = merge(state.known, quakes, now=now)
+    for k in res.new + res.changed:
+        archive_of(app).add("igc", now, k.quake, ref=k.quake.url, note="nuevo" if k in res.new else "cambió")
     sent, edited = (0, 0) if first_run else await announce(tg, state.known, res)  # the first look only learns
     state.known, state.etag = res.known, etag
     state.last_ok = state.last_change = _iso(now)
@@ -431,6 +488,8 @@ async def backup_tick(app: web.Application, state: State, now: datetime, reason:
     if backup is not None:
         first_run = fresh
         res = merge_backup(state.known, backup)
+        for k in res.new + res.changed:
+            archive_of(app).add("emsc", now, k.quake, ref=k.quake.url, note="nuevo" if k in res.new else "cambió")
         sent, edited = (0, 0) if first_run else await announce(tg, state.known, res)
         state.known = res.known
         summary.update(backup=len(backup), new=len(res.new), sent=sent, edited=edited, changed=bool(res.new or res.changed))
@@ -471,22 +530,38 @@ def status_text(state: State, now: datetime) -> str:
     if CFG["x_token"]:
         head += f"\nX (@{CFG['x_user']}): última lectura a las {local(state.x_last_ok)}."
         for e in state.x_log[:3]:
-            head += f"\n  • {_esc(e['text'][60:90] or e['text'][:30])}… → {_esc(e['result'])}"
+            head += f"\n  • {_esc(e['text'])} → {_esc(e['result'])}"
     recent = [k for k in state.known.values() if now - k.quake.time <= timedelta(hours=24)]
     return f"{head}\n\nSismos de las últimas 24 h: {len(recent)}; en el canal: {sum(1 for k in recent if k.message_id)}."
 
 
-async def relay_notice(app: web.Application, q: IgcQuake) -> str:
+def skip_reason(q: IgcQuake, max_age: float, now: datetime) -> str:
+    """Why a new quake wasn't announced (the rules of to_notify)."""
+    reasons = []
+    if q.mag < CFG["min_mag"]:
+        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f}")
+    if now - q.time > timedelta(minutes=max_age):
+        reasons.append(f"es de hace más de {max_age:.0f} min")
+    if not reasons:
+        reasons.append(f"está a más de {CFG['max_km']:.0f} km de Ciudad de Panamá")
+    return "; ".join(reasons)
+
+
+async def relay_notice(app: web.Application, q: IgcQuake, raw: str | None = None) -> str:
     """Puts a relayed notice through the same rules as IGC's list. Returns what
     happened, to tell the person who sent it."""
-    tg, now = app["telegram"], datetime.now(timezone.utc)
+    tg, now = app["telegram"], datetime.now(timezone.utc).replace(microsecond=0)
     async with app["lock"]:
         state = await load_state(app)
         match = next((k for k in state.known.values() if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
         res = merge_backup(state.known, [q])
-        sent, edited = await announce(tg, state.known, res, max_age=CFG["relay_max_age"])
-        state.known = res.known
-        await _save(app["store"], state)
+        archive_of(app).add("whatsapp", now, q, raw=raw)
+        try:
+            sent, edited = await announce(tg, state.known, res, max_age=CFG["relay_max_age"])
+        finally:
+            state.known = res.known
+            await _save(app["store"], state)
+            await archive_of(app).flush(app["store"])
     if sent:
         return "✅ Publicado en el canal."
     if edited:
@@ -495,14 +570,7 @@ async def relay_notice(app: web.Application, q: IgcQuake) -> str:
         where = "en el canal" if match.message_id else "registrado"
         origin = {"igc": "de la lista del IGC", "relay": "de un aviso anterior", "emsc": "de EMSC"}[source(match.quake)]
         return f"👍 Ya estaba {where} ({origin}); no hice nada."
-    reasons = []
-    if q.mag < CFG["min_mag"]:
-        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f}")
-    if now - q.time > timedelta(minutes=CFG["relay_max_age"]):
-        reasons.append(f"es de hace más de {CFG['relay_max_age']:.0f} min")
-    if not reasons:
-        reasons.append(f"está a más de {CFG['max_km']:.0f} km de Ciudad de Panamá")
-    return "📝 Lo guardé para la página, pero no lo publico en el canal: " + "; ".join(reasons) + "."
+    return "📝 Lo guardé para la página, pero no lo publico en el canal: " + skip_reason(q, CFG["relay_max_age"], now) + "."
 
 
 async def handle_telegram(request: web.Request) -> web.Response:
@@ -538,7 +606,7 @@ async def handle_telegram(request: web.Request) -> web.Response:
                 if preview:
                     await reply("👀 <b>Así quedaría</b> (no se publicó):\n\n" + message(q))
                 else:
-                    await reply(await relay_notice(app, q))
+                    await reply(await relay_notice(app, q, raw=text))
     except Exception:  # noqa: BLE001 - answer 200 anyway, or Telegram resends it forever
         log.exception("telegram update failed")
     return web.json_response({"ok": True})

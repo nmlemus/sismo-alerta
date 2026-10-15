@@ -517,7 +517,12 @@ async def test_posts_on_x(tmp_path):
         x["posts"].append(("102", _post(t, 4.5, "18km al noroeste de Tonosí") + " https://t.co/AbC123xyz"))
         second = await monitor_main.tick(app)
         assert second["x"]["sent"] == 1 and x["calls"][-1] == "101"
-        assert app["state"].x_log[0]["id"] == "102" and app["state"].x_log[0]["result"] == "publicado M4.5"
+        assert app["state"].x_log[0]["id"] == "102" and app["state"].x_log[0]["result"] == "publicado"
+        assert app["state"].x_log[0]["text"].startswith("M4.5 ") and "18 km al noroeste de Tonosí, Panamá" in app["state"].x_log[0]["text"]
+        assert app["state"].x_log[1]["result"] == "no se publica: es de hace más de 30 min"
+        xs = [r for r in _archive(tmp_path) if r["source"] == "x"]
+        assert [r["ref"].rsplit("/", 1)[1] for r in xs] == ["100", "101", "102"] and xs[2]["raw"].endswith("https://t.co/AbC123xyz")
+        assert "quake" not in xs[0] and xs[0]["note"].startswith("no es un aviso")
         assert app["state"].x_log[-1]["result"].startswith("no es un aviso: falta fecha")  # the pinned-style post
         assert "M4.5" in tg.sent[0][0] and "publicación del IGC en X" in tg.sent[0][0]
         assert tg.buttons[0][0][0] == {"text": "𝕏 Publicación del IGC", "url": "https://x.com/igcpanamaup/status/102"}
@@ -576,6 +581,56 @@ async def test_x_post_kept_when_telegram_fails(tmp_path):
         assert "error" in r and state.x_since_id == "500" and state.x_version == monitor_main.X_VERSION
         assert any(k.quake.url.endswith("/status/500") for k in state.known.values())
         assert "error: Telegram" in state.x_log[0]["result"]
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
+        monitor_main.CFG.clear()
+        monitor_main.CFG.update(cfg)
+
+
+def _archive(tmp_path):
+    import json
+    return [json.loads(line) for f in sorted((tmp_path / "archive" / "raw").glob("*.jsonl")) for line in f.read_text().splitlines()]
+
+
+@pytest.mark.asyncio
+async def test_archive_keeps_everything_seen(tmp_path):
+    from app.igc import parse_notice
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    app = monitor_main.make_app()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), FakeTelegram()
+    # the monitor already knew two quakes from IGC's list when the archive started
+    old = parse_list(_page([(now - timedelta(days=5), 7.6, -80.7, 7.7, True), (now - timedelta(days=1), 7.5, -80.6, 4.2, True)]))
+    state = monitor_main.State(etag='"v1"', known={q.id: monitor_main.Known(q.id, q) for q in old})
+    app["state"] = state
+
+    async def igc(request):
+        return web.Response(status=304)
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    cfg = dict(monitor_main.CFG)
+    monitor_main.CFG.update(igc_url=f"http://127.0.0.1:{port}/", x_token="")
+    try:
+        await monitor_main.tick(app)
+        recs = _archive(tmp_path)
+        assert [r["quake"]["mag"] for r in recs] == [7.7, 4.2] and all(r["source"] == "igc" for r in recs)
+        assert state.archive_since is not None
+        await monitor_main.tick(app)
+        assert len(_archive(tmp_path)) == 2  # only once
+        # a WhatsApp notice: kept with its original text
+        text = _post(now - timedelta(minutes=2), 3.9, "20km al sur de Tonosí")
+        await monitor_main.relay_notice(app, parse_notice(text), raw=text)
+        last = _archive(tmp_path)[-1]
+        assert last["source"] == "whatsapp" and last["raw"] == text and last["quake"]["mag"] == 3.9
         for fn in app.on_cleanup:
             await fn(app)
     finally:
