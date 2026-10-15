@@ -673,7 +673,7 @@ def test_only_significant_quakes_go_to_telegram():
     # the reason given to whoever relays a small one
     monitor_main.CFG.update(min_mag=4.5, min_mmi=5)
     reason = monitor_main.skip_reason(offshore_41, 30, now)
-    assert reason.startswith("M4.1 es menor que M4.5 y no se sentiría moderado en ningún pueblo (lo más fuerte: ") and " en " in reason
+    assert reason.startswith("M4.1 es menor que M4.5 y no se sentiría con intensidad V en ningún pueblo (lo más fuerte: ") and " en " in reason
 
 
 def test_defaults_are_significant_only():
@@ -682,7 +682,7 @@ def test_defaults_are_significant_only():
     assert os.environ.get("NOTIFY_MIN_MAG") is None
     fresh = importlib.reload(importlib.import_module("app.monitor_main"))
     try:
-        assert (fresh.CFG["min_mag"], fresh.CFG["min_mmi"], fresh.CFG["loud_mag"], fresh.CFG["loud_mmi"]) == (4.5, 5.0, 5.5, 6.0)
+        assert (fresh.CFG["min_mag"], fresh.CFG["min_mmi"], fresh.CFG["loud_mag"], fresh.CFG["loud_mmi"]) == (3.5, 99.0, 4.0, 99.0)
     finally:
         importlib.reload(fresh)
 

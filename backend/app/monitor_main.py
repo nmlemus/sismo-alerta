@@ -11,12 +11,11 @@ Environment:
                        Empty: files in ./monitor-data (for local runs).
   TELEGRAM_BOT_TOKEN   Bot token from @BotFather. Empty: messages are only logged.
   TELEGRAM_CHAT_ID     Channel, e.g. @mi_canal or -100123... (the bot must be an admin).
-  NOTIFY_MIN_MAG       4.5   Announced from this magnitude...
-  NOTIFY_MIN_MMI       5     ...or if some town would feel at least this intensity (V: moderate).
-                             Smaller ones only go to the web page: a message for every small
-                             aftershock causes more worry than it informs.
-  LOUD_MIN_MAG         5.5   With sound from this magnitude...
-  LOUD_MIN_MMI         6     ...or this intensity in some town; the rest arrive silently.
+  NOTIFY_MIN_MAG       3.5   Announced from this magnitude...
+  NOTIFY_MIN_MMI       99    ...or if some town would feel at least this intensity (5 = V,
+                             moderate). 99: off, magnitude alone decides.
+  LOUD_MIN_MAG         4.0   With sound from this magnitude...
+  LOUD_MIN_MMI         99    ...or this intensity in some town (99: off); the rest arrive silently.
   REVISION_REPLIES     off   on: besides editing the message, reply to it with what IGC
                              changed. Off by default: an edit notifies nobody, a reply does.
   NOTIFY_MAX_KM        400   Only quakes this close to Panama City.
@@ -56,7 +55,7 @@ import aiohttp
 from aiohttp import web
 
 from .feeds import origin_from_emsc_feature
-from .intensity import describe
+from .intensity import ROMAN, describe
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
 from .monitor import (Known, MergeResult, _clock, _esc, _place, apply_peaks, buttons, effective, known_signature, message_for,
                       significant, strongest_town, cluster_note, edited_footer, feed, merge, merge_backup, message,
@@ -70,10 +69,10 @@ ENV = os.environ.get
 CFG = {
     "igc_url": ENV("IGC_URL", IGC_URL),
     "bucket": ENV("BUCKET", ""),
-    "min_mag": float(ENV("NOTIFY_MIN_MAG", "4.5")),
-    "min_mmi": float(ENV("NOTIFY_MIN_MMI", "5")),
-    "loud_mag": float(ENV("LOUD_MIN_MAG", "5.5")),
-    "loud_mmi": float(ENV("LOUD_MIN_MMI", "6")),
+    "min_mag": float(ENV("NOTIFY_MIN_MAG", "3.5")),
+    "min_mmi": float(ENV("NOTIFY_MIN_MMI", "99")),
+    "loud_mag": float(ENV("LOUD_MIN_MAG", "4.0")),
+    "loud_mmi": float(ENV("LOUD_MIN_MMI", "99")),
     "revision_replies": ENV("REVISION_REPLIES", "off").lower() in ("on", "1", "true", "yes"),
     "max_km": float(ENV("NOTIFY_MAX_KM", "400")),
     "max_age": float(ENV("NOTIFY_MAX_AGE_MIN", "30")),
@@ -608,9 +607,12 @@ def skip_reason(q: IgcQuake, max_age: float, now: datetime) -> str:
     """Why a new quake wasn't announced (the rules of to_notify)."""
     reasons = []
     if not significant(q, CFG["min_mag"], CFG["min_mmi"]):
-        town, mmi = strongest_town(q)
-        reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f} y no se sentiría moderado en ningún pueblo "
-                       f"(lo más fuerte: {describe(mmi)} en {town})")
+        if CFG["min_mmi"] > 10:  # intensity rule off
+            reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f}")
+        else:
+            town, mmi = strongest_town(q)
+            reasons.append(f"M{q.mag:.1f} es menor que M{CFG['min_mag']:.1f} y no se sentiría con intensidad "
+                           f"{ROMAN[round(CFG['min_mmi'])]} en ningún pueblo (lo más fuerte: {describe(mmi)} en {town})")
     if now - q.time > timedelta(minutes=max_age):
         reasons.append(f"es de hace más de {max_age:.0f} min")
     if not reasons:
