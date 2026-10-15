@@ -222,13 +222,14 @@ def revision_note(before: IgcQuake, after: IgcQuake) -> str | None:
     return head + "\n\n" + "\n".join(f"• {p}" for p in parts)
 
 
-def edited_footer(before: IgcQuake) -> str:
-    """Last line of an edited message: what it said before, so it reads on its own
-    (the reply under it has the full before → after)."""
+def edited_footer(before: IgcQuake, after: IgcQuake | None = None) -> str:
+    """Last line of an edited message: what it said before, so the edit explains itself
+    without another message (an edit doesn't notify anyone; a new message does)."""
     state = "revisado" if before.reviewed else "preliminar"
     via = (" (vía EMSC)" if from_emsc(before) else " (aviso en X)" if from_x(before)
            else " (aviso por WhatsApp)" if from_relay(before) else "")
-    return f"<i>✏️ Editado · antes: M{before.mag:.1f} {state}{via}, {_esc(_place(before))}</i>"
+    head = "Revisado por el IGC" if after is not None and after.reviewed and not before.reviewed else "Editado"
+    return f"<i>✏️ {head} · antes: M{before.mag:.1f} {state}{via}, {_esc(_place(before))}</i>"
 
 
 def nearby_earlier(q: IgcQuake, known: list["Known"], minutes: float = 10, km: float = 40) -> "Known | None":

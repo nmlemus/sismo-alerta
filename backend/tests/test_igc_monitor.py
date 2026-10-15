@@ -16,7 +16,7 @@ def old_thresholds():
     """Most tests were written for "every M3.5+, with sound from M4": keep them on that,
     and test the "only significant ones" rule on its own below."""
     saved = dict(monitor_main.CFG)
-    monitor_main.CFG.update(min_mag=3.5, min_mmi=99, loud_mag=4.0, loud_mmi=99)
+    monitor_main.CFG.update(min_mag=3.5, min_mmi=99, loud_mag=4.0, loud_mmi=99, revision_replies=True)
     yield
     monitor_main.CFG.clear()
     monitor_main.CFG.update(saved)
@@ -161,7 +161,7 @@ async def test_tick_end_to_end(tmp_path, aiohttp_server=None):
             (now - timedelta(hours=2), 7.6, -80.7, 4.0, True)])
         fourth = await monitor_main.tick(app)
         assert fourth["edited"] == 1 and tg.edits[0][0] == 1 and "M4.8" in tg.edits[0][1] and "revisado" in tg.edits[0][1]
-        assert tg.edits[0][1].endswith("<i>✏️ Editado · antes: M4.6 preliminar, 20 km al sur de Soná, Panamá</i>")
+        assert tg.edits[0][1].endswith("<i>✏️ Revisado por el IGC · antes: M4.6 preliminar, 20 km al sur de Soná, Panamá</i>")
         # ...and a silent reply to the original says what changed
         assert tg.sent[1][0].startswith("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M4.6 → <b>M4.8</b>") and tg.sent[1][1] is True and tg.replies[1] == 1
         # a new quake 3 minutes later and 10 km away replies to that message
@@ -310,7 +310,7 @@ async def test_igc_down_emsc_backup_then_igc_back(tmp_path):
         back = await monitor_main.tick(app)
         assert back["new"] == 0 and back["sent"] == 0 and back["edited"] == 1
         assert tg.edits[0][0] == 1 and "M3.7" in tg.edits[0][1] and "tomados de EMSC" not in tg.edits[0][1]
-        assert tg.edits[0][1].endswith("antes: M3.6 preliminar (vía EMSC), 29 km al suroeste de Santa Catalina, Panamá</i>")
+        assert tg.edits[0][1].endswith("Revisado por el IGC · antes: M3.6 preliminar (vía EMSC), 29 km al suroeste de Santa Catalina, Panamá</i>")
         note = tg.sent[2][0]
         assert note.startswith("✏️ <b>Revisado por el IGC</b>\n\n• Magnitud: M3.6 → <b>M3.7</b>") and tg.replies[2] == 1
         assert "Lugar" not in note  # our wording vs IGC's is not a change
@@ -684,3 +684,21 @@ def test_defaults_are_significant_only():
         assert (fresh.CFG["min_mag"], fresh.CFG["min_mmi"], fresh.CFG["loud_mag"], fresh.CFG["loud_mmi"]) == (4.5, 5.0, 5.5, 6.0)
     finally:
         importlib.reload(fresh)
+
+
+@pytest.mark.asyncio
+async def test_revisions_only_edit_by_default(tmp_path):
+    """IGC revises an announced quake: the message is edited (no notification) and,
+    by default, no reply is sent."""
+    from app.monitor import Known, MergeResult
+    from app.igc import IgcQuake
+    monitor_main.CFG["revision_replies"] = False
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    pre = IgcQuake(now - timedelta(minutes=5), 7.6, -80.7, 10.0, 4.6, False, "Localizado en Panamá a 20km al sur de Soná", "u")
+    rev = IgcQuake(pre.time, 7.6, -80.7, 8.0, 4.8, True, pre.place, "u")
+    k_old = Known(pre.id, pre, 7, "sig")
+    k_new = Known(pre.id, rev, 7, "sig")
+    tg = FakeTelegram()
+    sent, edited = await monitor_main.announce(tg, {pre.id: k_old}, MergeResult(known={pre.id: k_new}, changed=[k_new]))
+    assert (sent, edited) == (0, 1) and tg.sent == []
+    assert "M4.8" in tg.edits[0][1] and tg.edits[0][1].endswith("<i>✏️ Revisado por el IGC · antes: M4.6 preliminar, 20 km al sur de Soná, Panamá</i>")

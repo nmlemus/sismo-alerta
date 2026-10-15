@@ -17,6 +17,8 @@ Environment:
                              aftershock causes more worry than it informs.
   LOUD_MIN_MAG         5.5   With sound from this magnitude...
   LOUD_MIN_MMI         6     ...or this intensity in some town; the rest arrive silently.
+  REVISION_REPLIES     off   on: besides editing the message, reply to it with what IGC
+                             changed. Off by default: an edit notifies nobody, a reply does.
   NOTIFY_MAX_KM        400   Only quakes this close to Panama City.
   NOTIFY_MAX_AGE_MIN   30    Never announce anything older (e.g. after downtime).
   DASHBOARD_URL        Link in every message.
@@ -71,6 +73,7 @@ CFG = {
     "min_mmi": float(ENV("NOTIFY_MIN_MMI", "5")),
     "loud_mag": float(ENV("LOUD_MIN_MAG", "5.5")),
     "loud_mmi": float(ENV("LOUD_MIN_MMI", "6")),
+    "revision_replies": ENV("REVISION_REPLIES", "off").lower() in ("on", "1", "true", "yes"),
     "max_km": float(ENV("NOTIFY_MAX_KM", "400")),
     "max_age": float(ENV("NOTIFY_MAX_AGE_MIN", "30")),
     "dashboard": ENV("DASHBOARD_URL", "https://sismo-alerta-235ca.web.app"),
@@ -302,14 +305,15 @@ async def announce(tg, before: dict[str, Known], res: MergeResult, max_age: floa
     for k in res.changed:
         if k.message_id and k.sent_signature != signature(k.quake):
             old = before[k.id].quake
-            # The original message shows the current data, and a silent reply to it
-            # says what changed, so the chat keeps the order of what happened.
+            # The original message is edited to show the current data, with a last line
+            # saying what it said before. Editing notifies nobody; a reply with the full
+            # before → after only goes out if REVISION_REPLIES is on.
             note = revision_note(old, k.quake)
             # With nothing a reader would notice (a nudge of the coordinates, or IGC's list
             # confirming a relayed notice), the message is just refreshed, without "Editado".
-            footer = "\n\n" + edited_footer(old) if note else ""
+            footer = "\n\n" + edited_footer(old, k.quake) if note else ""
             await tg.edit(k.message_id, message(k.quake) + footer, buttons(k.quake, CFG["dashboard"]))
-            if note:
+            if note and CFG["revision_replies"]:
                 await tg.send(note, silent=True, reply_to=k.message_id)
             k.sent_signature = signature(k.quake)
             edited += 1
@@ -678,8 +682,9 @@ async def run_test(app: web.Application, keep_s: float = 30, edit_after_s: float
     if mid is not None and edit_after_s:
         await asyncio.sleep(edit_after_s)
         revised = IgcQuake(q.time, q.lat, q.lon, 8.0, round(q.mag + 0.1, 1), True, q.place, q.url)
-        await tg.edit(mid, TEST_BANNER + message(revised) + "\n\n" + edited_footer(q), buttons(revised, CFG["dashboard"]))
-        steps["reply_message_id"] = await tg.send("🧪 " + revision_note(q, revised), silent=True, reply_to=mid)
+        await tg.edit(mid, TEST_BANNER + message(revised) + "\n\n" + edited_footer(q, revised), buttons(revised, CFG["dashboard"]))
+        if CFG["revision_replies"]:
+            steps["reply_message_id"] = await tg.send("🧪 " + revision_note(q, revised), silent=True, reply_to=mid)
         steps["edited"] = True
     if mid is not None and keep_s:
         await asyncio.sleep(keep_s)
