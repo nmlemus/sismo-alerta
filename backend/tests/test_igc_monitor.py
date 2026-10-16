@@ -676,7 +676,7 @@ def test_only_significant_quakes_go_to_telegram():
     assert reason.startswith("M4.1 es menor que M4.5 y no se sentiría con intensidad V en ningún pueblo (lo más fuerte: ") and " en " in reason
 
 
-def test_defaults_are_significant_only():
+def test_default_thresholds():
     import importlib
     import os
     assert os.environ.get("NOTIFY_MIN_MAG") is None
@@ -771,3 +771,82 @@ async def test_highest_igc_magnitude_decides(tmp_path):
             await fn(app)
     finally:
         await runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_revisado_on_x_updates_a_preliminary_from_the_list(tmp_path):
+    """The message went out from IGC's list as PRELIMINAR; IGC posts the REVISADO on X
+    first. The message is edited right away, and the list's PRELIMINAR row (until it
+    catches up) never takes it back."""
+    monitor_main.CFG["revision_replies"] = False
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    t = now - timedelta(minutes=4)
+    old = (now - timedelta(hours=3), 7.6, -80.7, 3.9, True)
+    igc_state = {"etag": '"v1"', "body": _page([old])}
+    x = {"posts": []}
+
+    async def igc(request):
+        if request.headers.get("If-None-Match") == igc_state["etag"]:
+            return web.Response(status=304)
+        return web.Response(text=igc_state["body"], content_type="text/html", headers={"ETag": igc_state["etag"]})
+
+    async def user(request):
+        return web.json_response({"data": {"id": "77"}})
+
+    async def tweets(request):
+        since = int(request.query.get("since_id", "0"))
+        return web.json_response({"data": [{"id": i, "text": txt} for i, txt in x["posts"] if int(i) > since]})
+
+    srv = web.Application()
+    srv.router.add_get("/", igc)
+    srv.router.add_get("/2/users/by/username/igcpanamaup", user)
+    srv.router.add_get("/2/users/77/tweets", tweets)
+    runner = web.AppRunner(srv)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    port = site._server.sockets[0].getsockname()[1]
+    monitor_main.CFG.update(igc_url=f"http://127.0.0.1:{port}/", x_api=f"http://127.0.0.1:{port}/2", x_token="xt")
+    app = monitor_main.make_app()
+    tg = FakeTelegram()
+    for fn in app.on_startup:
+        await fn(app)
+    app["store"], app["telegram"] = monitor_main.FileStore(str(tmp_path)), tg
+    try:
+        await monitor_main.tick(app)  # learns
+        igc_state.update(etag='"v2"', body=_page([(t, 7.50, -80.45, 4.2, False), old]))
+        await monitor_main.tick(app)
+        assert len(tg.sent) == 1 and "🕒 preliminar" in tg.sent[0][0]
+        # REVISADO on X, the list still says PRELIMINAR
+        x["posts"].append(("901", _post(t + timedelta(seconds=2), 4.3, "10km al norte de Tonosí", "REVISADO")))
+        await monitor_main.tick(app)
+        assert len(tg.edits) == 1 and "✅ revisado" in tg.edits[0][1] and "M4.3" in tg.edits[0][1]
+        assert "Revisado por el IGC · antes: M4.2 preliminar" in tg.edits[0][1]
+        assert app["state"].x_log[0]["result"] == "actualizó el mensaje"
+        # the list changes (another quake) with this one still PRELIMINAR: no step back
+        igc_state.update(etag='"v3"', body=_page([(now - timedelta(minutes=1), 7.9, -80.9, 3.0, False),
+                                                   (t, 7.50, -80.45, 4.2, False), old]))
+        await monitor_main.tick(app)
+        assert len(tg.edits) == 1 and len(tg.sent) == 1
+        assert next(k for k in app["state"].known.values() if abs((k.quake.time - t).total_seconds()) < 5).quake.reviewed
+        # the list catches up: the message shows the list's data, still revisado
+        igc_state.update(etag='"v4"', body=_page([(now - timedelta(minutes=1), 7.9, -80.9, 3.0, False),
+                                                   (t, 7.50, -80.45, 4.3, True), old]))
+        await monitor_main.tick(app)
+        assert all("🕒 preliminar" not in text for _, text in tg.edits[1:]) and "✅ revisado" in tg.edits[-1][1]
+        for fn in app.on_cleanup:
+            await fn(app)
+    finally:
+        await runner.cleanup()
+
+
+def test_which_version_replaces_which():
+    from app.igc import IgcQuake
+    from app.monitor import replaces
+    t = datetime(2026, 10, 16, 5, 0, tzinfo=timezone.utc)
+    lst = IgcQuake(t, 7.5, -80.4, 10.0, 4.2, False, "p", "https://sismosgeociencias.up.ac.pa/ultimosismo.html?x=1")
+    x_rev = IgcQuake(t, 7.5, -80.4, 10.0, 4.3, True, "p", "https://x.com/igcpanamaup/status/1")
+    x_pre = IgcQuake(t, 7.5, -80.4, 10.0, 4.3, False, "p", "https://x.com/igcpanamaup/status/1")
+    lst_rev = IgcQuake(t, 7.5, -80.4, 10.0, 4.3, True, "p", lst.url)
+    assert replaces(x_rev, lst) and not replaces(x_pre, lst) and not replaces(x_pre, x_rev)
+    assert replaces(lst_rev, x_rev) and not replaces(lst, x_rev)

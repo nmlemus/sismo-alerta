@@ -55,6 +55,14 @@ def merge(known: dict[str, Known], current: list[IgcQuake], keep_days: float = 8
         match = next((k for k in pool if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
         if match:
             pool.remove(match)
+            if match.quake.reviewed and not q.reviewed:
+                # IGC already revised it on another channel (X, WhatsApp) and its list
+                # hasn't caught up: keep the revised version until the list says REVISADO.
+                entry = match
+                if raise_peak(entry, q):
+                    out.peaked.append(entry)
+                out.known[entry.id] = entry
+                continue
             before = signature(match.quake)
             entry = Known(match.id, q, match.message_id, match.sent_signature, match.peak_mag, match.peak_src)
             if signature(q) != before:
@@ -78,17 +86,26 @@ EMSC_GRACE_MIN = 60  # how long IGC's list gets to show a quake first seen on EM
 _RANK = {"emsc": 0, "relay": 1, "igc": 2}  # IGC's list > IGC's WhatsApp notice > EMSC
 
 
+def replaces(q: IgcQuake, known: IgcQuake) -> bool:
+    """Whether another version of a known quake should replace it: a REVISADO from any
+    IGC channel beats a PRELIMINAR (IGC often revises on X before its list), a
+    PRELIMINAR never undoes a REVISADO, and otherwise the more reliable source wins."""
+    if q.reviewed != known.reviewed:
+        return q.reviewed and source(q) != "emsc"
+    return _RANK[source(q)] >= _RANK[source(known)]
+
+
 def merge_backup(known: dict[str, Known], backup: list[IgcQuake]) -> MergeResult:
     """Like merge(), for quakes from a secondary source (EMSC while IGC's list is
-    down, or an IGC WhatsApp notice relayed by hand). They add what isn't known, and
-    update a known quake only if it came from the same or a less reliable source."""
+    down, IGC's posts on X, or a WhatsApp notice relayed by hand). They add what isn't
+    known, and update a known quake if replaces() says so."""
     out = MergeResult(known=dict(known))
     pool = list(known.values())
     for q in backup:
         match = next((k for k in pool if same_quake(q, k.quake.time, k.quake.lat, k.quake.lon)), None)
         if match:
             pool.remove(match)
-            if _RANK[source(q)] >= _RANK[source(match.quake)] and signature(q) != signature(match.quake):
+            if replaces(q, match.quake) and signature(q) != signature(match.quake):
                 entry = Known(match.id, q, match.message_id, match.sent_signature, match.peak_mag, match.peak_src)
                 out.changed.append(entry)
                 out.known[entry.id] = entry
