@@ -1,6 +1,8 @@
-// Leaflet map of the sequence with a time slider and playback. Aftershocks are
-// colored by local day, the mainshock in red, the week before in gray; a dark ring
-// marks the last RECENT_HOURS before the moment shown. With the week before turned
+// Leaflet map of Panama's earthquakes since the mainshock, with a time slider and
+// playback. Earthquakes are colored by local day, the mainshock in red, the week before
+// in gray; a dark ring marks the last RECENT_HOURS before the moment shown. The dotted
+// box is the aftershock zone: what is outside is drawn the same way, and only its card
+// says it is not an aftershock. With the week before turned
 // on, the slider also covers the days before the mainshock (negative time).
 
 import { PLACES, PLATES, PLAY_SECONDS, RECENT_HOURS, SATELLITE, SEQUENCE, TILES, VIEWS } from './config.js';
@@ -42,7 +44,7 @@ function quakeCard(ev, note, withLink, onWave) {
   return box;
 }
 
-const note = (kind) => (kind === 'seq' ? '' : t(`note.${kind}`));
+const note = (kind, ev) => (kind === 'seq' ? (ev && ev.aftershock === false ? t('note.out') : '') : t(`note.${kind}`));
 
 // Remembered per visitor (best effort: storage may be off).
 const pref = {
@@ -60,8 +62,9 @@ const PLATE_STYLE = {
 const AUX = new Set(['other', 'pre', 'unconfirmed']); // drawn on the secondary layer
 
 export class QuakeMap {
-  constructor({ mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone }) {
-    Object.assign(this, { mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone });
+  constructor({ mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone, view = 'zone' }) {
+    Object.assign(this, { mapEl, playBtn, slider, ticks, timeLabel, viewBtns, legendEl, zone, view });
+    this.scope = 'todos';
     this.t = null; // ms since the mainshock shown on the map (negative = before); null = follow "now"
     this.markers = new Map(); // id -> { marker, ev, kind, shown, key }
     this.playing = false;
@@ -76,7 +79,7 @@ export class QuakeMap {
     const fit = () => {
       if (!this.mapEl.clientWidth || !this.mapEl.clientHeight) return;
       map.invalidateSize();
-      if (!this.fitted) { map.fitBounds(VIEWS.zone); this.fitted = true; }
+      if (!this.fitted) { map.fitBounds(VIEWS[this.view]); this.fitted = true; }
     };
     new ResizeObserver(fit).observe(this.mapEl);
     fit();
@@ -129,11 +132,17 @@ export class QuakeMap {
       this.t = v >= 0.999 ? null : this.tMin + v * (this.T - this.tMin);
       this.render();
     });
-    this.viewBtns.forEach((b) => b.addEventListener('click', () => {
-      this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      if (!this.fitted) return;
-      map.flyToBounds(VIEWS[b.dataset.view], { duration: 0.6 });
-    }));
+    this.viewBtns.forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.view === this.view));
+      b.addEventListener('click', () => this.showView(b.dataset.view));
+    });
+  }
+
+  /** "Zona de réplicas" or "Todo Panamá". */
+  showView(name) {
+    this.view = name;
+    this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.view === name)));
+    if (this.fitted) this.map.flyToBounds(VIEWS[name], { duration: 0.6 });
   }
 
   /** Street map or satellite. */
@@ -219,8 +228,9 @@ export class QuakeMap {
   get tMin() { return this.showPre ? -SEQUENCE.preDays * 24 * H : Math.max(0, this.from == null ? 0 : this.from - this.main.t.getTime()); }
 
   /** Rebuild markers for new data. */
-  setData({ main, seq, others, pre, unconfirmed = [], dayIndex, days, ref, now, showPre, from = null }) {
+  setData({ main, seq, others, pre, unconfirmed = [], dayIndex, days, ref, now, showPre, from = null, scope = 'todos' }) {
     this.main = main;
+    this.scope = scope;
     this.from = from;
     this.now = now;
     this.T = Math.max(1, now - main.t.getTime());
@@ -234,8 +244,8 @@ export class QuakeMap {
         const z = this.zone;
         const bounds = L.latLngBounds([[z.minLat, z.minLon], [z.maxLat, z.maxLon]]);
         if (showPre) pre.forEach((e) => bounds.extend([e.lat, e.lon]));
-        this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(!showPre && x.dataset.view === 'zone')));
-        this.map.flyToBounds(showPre ? bounds : VIEWS.zone, { duration: 0.6, padding: [20, 20] });
+        this.viewBtns.forEach((x) => x.setAttribute('aria-pressed', String(!showPre && x.dataset.view === this.view)));
+        this.map.flyToBounds(showPre ? bounds : VIEWS[this.view], { duration: 0.6, padding: [20, 20] });
       }
     }
     if (this.t != null && (this.t < this.tMin || this.t > this.T)) this.t = null;
@@ -259,10 +269,10 @@ export class QuakeMap {
       if (prev) this.layerOf(prev.kind).removeLayer(prev.marker);
       const radius = kind === 'pre' ? Math.max(6, radiusFor(ev.mag) + 2) : radiusFor(ev.mag) + (kind === 'main' ? 2 : 0);
       const marker = L.circleMarker([ev.lat, ev.lon], { pane: kind === 'pre' ? 'pre' : 'quakes', radius, weight: 1 });
-      marker.bindPopup(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), true,
+      marker.bindPopup(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind, ev), true,
         kind === 'unconfirmed' || !this.onPropagate ? null : (e) => { this.map.closePopup(); this.onPropagate(e); }));
       if (kind === 'main') marker.bindTooltip(`M${fmtMag(ev.mag)}`, { permanent: true, direction: 'right', className: 'main-label', offset: [8, 0] });
-      else marker.bindTooltip(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind), false), { direction: 'top', offset: [0, -4] });
+      else marker.bindTooltip(() => quakeCard(this.markers.get(ev.id)?.ev || ev, note(kind, ev), false), { direction: 'top', offset: [0, -4] });
       this.markers.set(ev.id, { marker, ev, kind, sig, shown: false, key: '' });
     }
     for (const [id, m] of this.markers) {
@@ -345,7 +355,8 @@ export class QuakeMap {
     }
     const before = this.t != null && this.t < 0;
     const when = this.t == null ? t('time.now', fmtTime(new Date(tNow))) : fmtTime(new Date(tNow));
-    const count = before ? t('time.before', (-this.t / (24 * H)).toFixed(1), fmtInt(nPre)) : t('time.after', fmtInt(n));
+    const count = before ? t('time.before', (-this.t / (24 * H)).toFixed(1), fmtInt(nPre))
+      : t(this.scope === 'replicas' ? 'time.after' : 'time.afterAll', fmtInt(n));
     this.timeLabel.textContent = `${when} · ${count}`;
     this.slider.value = String(this.t == null ? 1000 : Math.round(((this.t - this.tMin) / (this.T - this.tMin)) * 1000));
   }
@@ -390,12 +401,19 @@ export class QuakeMap {
     this.t = null;
     this.render();
     const m = this.markers.get(ev.id);
+    const zoom = Math.max(this.map.getZoom(), 9);
     let opened = false;
     const open = () => { if (!opened && m?.shown) { opened = true; m.marker.openPopup(); } };
     this.map.once('moveend', open);
-    setTimeout(open, 1500); // in case the flight is interrupted
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) this.map.setView([ev.lat, ev.lon], Math.max(this.map.getZoom(), 9));
-    else this.map.flyTo([ev.lat, ev.lon], Math.max(this.map.getZoom(), 9), { duration: 0.8 });
+    // In case the flight is interrupted or never finishes: jump there, then open the card.
+    setTimeout(() => {
+      if (opened) return;
+      this.map.stop();
+      this.map.setView([ev.lat, ev.lon], zoom, { animate: false });
+      open();
+    }, 1500);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) this.map.setView([ev.lat, ev.lon], zoom);
+    else this.map.flyTo([ev.lat, ev.lon], zoom, { duration: 0.8 });
   }
 
   /** A pulsing ring around a newly published event. */
@@ -420,7 +438,8 @@ export class QuakeMap {
     for (const d of this.palette?.legend || []) add({ background: d.color }, d.label);
     if (this.showPre) add({ background: 'var(--pre)' }, t('leg.preDays', SEQUENCE.preDays));
     add({ background: 'transparent', border: '2px solid var(--ink)' }, t('leg.recent', RECENT_HOURS));
-    add({ border: '1.5px solid var(--muted)', background: 'transparent' }, t('leg.outside'));
+    if (this.scope === 'replicas') add({ border: '1.5px solid var(--muted)', background: 'transparent' }, t('leg.outside'));
+    else add({ border: '1.5px dashed var(--muted)', background: 'transparent', borderRadius: '2px' }, t('leg.zone'));
     if (this.hasUnconfirmed) add({ border: '1.5px dashed var(--ink)', background: 'transparent' }, t('leg.unconf'));
     add({ background: 'var(--link)', borderRadius: '2px', transform: 'rotate(45deg) scale(.8)' }, t('leg.ref'));
     if (this.platesOn) {

@@ -34,15 +34,14 @@
       <p class="take" id="takeaway" data-i18n="take.loading">Cargando el catálogo de sismos…</p>
       <ul class="sources" id="sources" aria-label="Estado de las fuentes" data-i18n-attr="aria-label:src.aria"></ul>
     </header>
-
     <div class="toast" id="toast" role="status" hidden></div>
-
     <section class="card hero" id="hero" aria-labelledby="hero-h" hidden>
       <div class="hero-main">
         <div class="hero-mag"><span class="hero-m">M</span><span id="hero-mag">—</span></div>
         <div class="hero-body">
           <div class="hero-head">
-          <h2 class="hero-h" id="hero-h"><span data-i18n="hero.kicker">Última réplica</span>, <span id="hero-ago"></span> <span class="hero-new" id="hero-new" hidden data-i18n="hero.new">nuevo</span></h2>
+          <h2 class="hero-h" id="hero-h"><span data-i18n="hero.kicker">Último sismo</span>, <span id="hero-ago"></span> <span class="hero-new" id="hero-new" hidden data-i18n="hero.new">nuevo</span></h2>
+          <span class="hero-tag" id="hero-tag"></span>
           <p class="hero-place" id="hero-place"></p>
           </div>
           <dl class="hero-facts">
@@ -68,8 +67,7 @@
         <button type="button" class="btn toggle" id="alarm" aria-pressed="false" data-i18n-attr="title:alarm.title" title=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg><span data-i18n="alarm.off">Activar alarma sonora</span></button>
       </div>
     </section>
-
-    <section class="tiles" aria-label="Cifras principales" data-i18n-attr="aria-label:tiles.aria">
+    <section class="tiles" id="tiles" aria-label="Cifras principales" data-i18n-attr="aria-label:tiles.aria">
       <div class="card tile">
         <span class="lbl" data-i18n="tile.main">Sismo principal</span>
         <span class="num" id="main-mag">—</span>
@@ -79,6 +77,11 @@
         <span class="lbl" data-i18n="tile.after">Réplicas registradas</span>
         <span class="num" id="n-after">—</span>
         <span class="sub" id="n-after-sub"></span>
+      </div>
+      <div class="card tile">
+        <span class="lbl" data-i18n="tile.out">Otros sismos en Panamá</span>
+        <span class="num" id="n-out">—</span>
+        <span class="sub" id="n-out-sub"></span>
       </div>
       <div class="card tile">
         <span class="lbl" data-i18n="tile.big">Mayor réplica</span>
@@ -96,7 +99,6 @@
         <span class="sub" id="m4-sub"></span>
       </div>
     </section>
-
     <div class="filters">
       <div class="fgroup">
         <span class="flabel" data-i18n="f.period">Periodo</span>
@@ -118,11 +120,10 @@
         </span>
       </div>
       <div class="fgroup">
-        <span class="flabel" data-i18n="f.area">Área</span>
-        <span class="seg" role="group" aria-label="Área" data-i18n-attr="aria-label:f.area">
-          <button type="button" class="btn" data-area="zona" aria-pressed="true" data-i18n="f.zona" data-i18n-attr="title:f.zonaLong">Zona</button>
-          <button type="button" class="btn" data-area="region" aria-pressed="false" data-i18n="f.region" data-i18n-attr="title:f.regionLong">Región</button>
-          <button type="button" class="btn" data-area="vista" aria-pressed="false" data-i18n="f.vista" data-i18n-attr="title:f.vistaLong">Vista del mapa</button>
+        <span class="flabel" data-i18n="f.show">Mostrar</span>
+        <span class="seg" role="group" aria-label="Mostrar" data-i18n-attr="aria-label:f.show">
+          <button type="button" class="btn" data-scope="todos" aria-pressed="true" data-i18n="f.all" data-i18n-attr="title:f.allLong">Todos los sismos</button>
+          <button type="button" class="btn" data-scope="replicas" aria-pressed="false" data-i18n="f.seq" data-i18n-attr="title:f.seqLong">Solo réplicas</button>
         </span>
       </div>
       <p class="fnote muted"><span id="area-note"></span> <span id="view-note"></span> <span id="pre-note"></span></p>
@@ -137,8 +138,8 @@
         <datalist id="map-ticks"></datalist>
         <span class="maptime" id="map-time-label">—</span>
         <span class="seg" role="group" aria-label="Vista del mapa" data-i18n-attr="aria-label:map.views">
-          <button type="button" class="btn" data-view="zone" aria-pressed="true" data-i18n="view.zone">Zona de réplicas</button>
-          <button type="button" class="btn" data-view="country" aria-pressed="false" data-i18n="view.country">Todo Panamá</button>
+          <button type="button" class="btn" data-view="country" aria-pressed="true" data-i18n="view.country">Todo Panamá</button>
+          <button type="button" class="btn" data-view="zone" aria-pressed="false" data-i18n="view.zone">Zona de réplicas</button>
         </span>
       </div>
       <div class="wavepanel" id="wave-panel" role="region" aria-labelledby="wave-title" hidden>
@@ -196,6 +197,43 @@
       <p class="note" id="hours-sum"></p>
     </section>
 
+    <section class="card" id="ref-card">
+      <div class="refhead">
+        <h2><span data-i18n="ref.h2a">¿Cómo se sintió en </span><span id="ref-name">Ciudad de Panamá</span><span data-i18n="ref.h2b">?</span></h2>
+        <label class="refsel"><span data-i18n="ref.for">Ver para</span> <select id="ref-select" aria-label="Lugar de referencia" data-i18n-attr="aria-label:ref.selAria"></select></label>
+      </div>
+      <p class="note" id="ref-note" data-i18n="ref.note">Intensidad en la escala de Mercalli. "Reportado" es lo que la gente contó al USGS después del sismo principal; "estimado" sale de un modelo que usa la magnitud y la distancia, y cambia con el suelo, el edificio y el piso.</p>
+      <div class="refrow">
+        <div class="badgebox"><span class="badge" id="ref-badge">—</span><span class="badgecap" id="ref-badge-cap"></span></div>
+        <div>
+          <div><b data-i18n="ref.reportedLbl">Sismo principal, reportado:</b> <span id="ref-reported">—</span></div>
+          <div><b data-i18n="ref.mainLbl">Sismo principal, estimado:</b> <span id="ref-main">—</span></div>
+          <div><b data-i18n="ref.dayLbl">Réplica más sentida en las últimas 24 h:</b> <span id="ref-day">—</span></div>
+          <div class="muted" id="ref-felt"></div>
+        </div>
+      </div>
+      <h3 data-i18n="int.h3">Intensidad estimada de cada sismo</h3>
+      <div class="chart skeleton" id="chart-intensity"></div>
+      <div class="legend" id="legend-intensity"></div>
+    </section>
+
+    <section class="card">
+      <div class="tablehead">
+        <h2 data-i18n="table.h2">Todos los sismos</h2>
+        <span class="muted" id="events-count"></span>
+        <button type="button" class="btn" id="csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span data-i18n="csv">Descargar CSV</span></button>
+      </div>
+      <input type="search" class="search" id="events-search" placeholder="Buscar por lugar, fecha, magnitud o agencia" aria-label="Buscar sismos" data-i18n-attr="placeholder:search.ph;aria-label:search.aria">
+      <div class="tablebox">
+        <table id="events"><thead><tr></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <div class="section-head" id="seq-head">
+      <h2 data-i18n="seq.h2">La secuencia del M7.7</h2>
+      <p class="note" data-i18n="seq.note">Desde aquí, solo las réplicas: los sismos dentro de la zona de réplicas (el recuadro punteado del mapa), sin los de otras partes de Panamá, para ver cómo va bajando la actividad.</p>
+    </div>
+
     <section class="card" id="rate-card">
       <h2 data-i18n="rate.h2">Frecuencia e intensidad en el tiempo</h2>
       <p class="note" data-i18n="rate.note">Cada punto cuenta los sismos de las 6 horas anteriores. Arriba, cuántos llegan por hora (escala logarítmica: cada salto de la cuadrícula multiplica por 3 o por 10); en medio, su magnitud promedio; abajo, la intensidad promedio que tendrían en el lugar de referencia. Las primeras horas cuentan de menos: muchas réplicas pequeñas no se lograron detectar.</p>
@@ -229,43 +267,11 @@
       <div id="forecast"></div>
     </section>
 
-    <section class="card" id="ref-card">
-      <div class="refhead">
-        <h2><span data-i18n="ref.h2a">¿Cómo se sintió en </span><span id="ref-name">Ciudad de Panamá</span><span data-i18n="ref.h2b">?</span></h2>
-        <label class="refsel"><span data-i18n="ref.for">Ver para</span> <select id="ref-select" aria-label="Lugar de referencia" data-i18n-attr="aria-label:ref.selAria"></select></label>
-      </div>
-      <p class="note" id="ref-note" data-i18n="ref.note">Intensidad en la escala de Mercalli. "Reportado" es lo que la gente contó al USGS después del sismo principal; "estimado" sale de un modelo que usa la magnitud y la distancia, y cambia con el suelo, el edificio y el piso.</p>
-      <div class="refrow">
-        <div class="badgebox"><span class="badge" id="ref-badge">—</span><span class="badgecap" id="ref-badge-cap"></span></div>
-        <div>
-          <div><b data-i18n="ref.reportedLbl">Sismo principal, reportado:</b> <span id="ref-reported">—</span></div>
-          <div><b data-i18n="ref.mainLbl">Sismo principal, estimado:</b> <span id="ref-main">—</span></div>
-          <div><b data-i18n="ref.dayLbl">Réplica más sentida en las últimas 24 h:</b> <span id="ref-day">—</span></div>
-          <div class="muted" id="ref-felt"></div>
-        </div>
-      </div>
-      <h3 data-i18n="int.h3">Intensidad estimada de cada sismo</h3>
-      <div class="chart skeleton" id="chart-intensity"></div>
-      <div class="legend" id="legend-intensity"></div>
-    </section>
-
     <section class="card" id="dyfi-card">
       <h2 data-i18n="dyfi.h2">¿Qué tan confiable es la estimación?</h2>
       <p class="note"><span data-i18n="dyfi.note">Lo que la gente reportó al USGS ("Did You Feel It?") en cada lugar de Panamá durante el sismo principal, frente al modelo sin ajuste local. En la capital y Colón se sintió más que lo que predice el modelo; por eso allí se suma +0.6.</span> <span id="dyfi-count"></span></p>
       <div class="chart skeleton" id="chart-dyfi"></div>
       <div class="legend" id="legend-dyfi"></div>
-    </section>
-
-    <section class="card">
-      <div class="tablehead">
-        <h2 data-i18n="table.h2">Todos los sismos</h2>
-        <span class="muted" id="events-count"></span>
-        <button type="button" class="btn" id="csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span data-i18n="csv">Descargar CSV</span></button>
-      </div>
-      <input type="search" class="search" id="events-search" placeholder="Buscar por lugar, fecha, magnitud o agencia" aria-label="Buscar sismos" data-i18n-attr="placeholder:search.ph;aria-label:search.aria">
-      <div class="tablebox">
-        <table id="events"><thead><tr></tr></thead><tbody></tbody></table>
-      </div>
     </section>
 
     <footer class="foot">

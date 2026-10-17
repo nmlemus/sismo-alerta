@@ -165,6 +165,12 @@ h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
 .hero-head { grid-area: head; min-width: 0; }
 .hero-h { font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .hero-new { font-size: 11px; font-weight: 700; color: #fff; background: var(--main); border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
+.hero-tag { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--outline); color: var(--ink-2); }
+.hero-tag[data-kind=seq] { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
+.hero-tag:empty { display: none; }
+.section-head { margin-top: 20px; padding-top: 18px; border-top: 2px solid var(--border); }
+.section-head h2 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+.section-head .note { margin: 4px 0 0; max-width: 72ch; }
 .hero-place { font-size: clamp(20px, 3vw, 26px); line-height: 1.2; font-weight: 650; letter-spacing: -0.01em; margin: 2px 0 12px; overflow-wrap: anywhere; }
 .hero-facts { grid-area: facts; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px 20px; margin: 0 0 12px; }
 .hero-facts dt { font-size: 12px; color: var(--ink-2); }

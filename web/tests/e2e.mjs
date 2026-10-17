@@ -121,7 +121,12 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check(/^\d+(\.\d)?$/.test(await page.textContent('#freq')) && (await page.textContent('#freq-sub')).includes('primeras 6 h'), `${vp.name}: current frequency tile (${await page.textContent('#freq')})`);
   check((await page.textContent('#big-mag')) === 'M6.6', `${vp.name}: largest aftershock M6.6`);
   check((await page.textContent('#unconfirmed-note summary')).startsWith('1 sismo sin confirmar'), `${vp.name}: the lone automatic UNA event is listed as unconfirmed, not counted`);
-  check((await page.locator('#events tbody tr').count()) === 306, `${vp.name}: table lists 306 events`);
+  check((await page.textContent('#n-out')) === '49' && (await page.textContent('#n-out-sub')).includes('el mayor, M'), `${vp.name}: 49 other earthquakes in Panama outside the zone (${await page.textContent('#n-out')}: ${await page.textContent('#n-out-sub')})`);
+  check((await page.locator('#events tbody tr').count()) === 355, `${vp.name}: table lists all 355 earthquakes in Panama (${await page.locator('#events tbody tr').count()})`);
+  check(/^(Réplica del M7\.7|Fuera de la zona de réplicas)$/.test(await page.textContent('#hero-tag')), `${vp.name}: hero says whether it is an aftershock (${await page.textContent('#hero-tag')})`);
+  check((await page.getAttribute('[data-view="country"]', 'aria-pressed')) === 'true', `${vp.name}: map opens on all of Panama`);
+  check(/Zona de réplicas \(recuadro punteado\)/.test(await page.textContent('#map-legend')), `${vp.name}: map legend explains the dotted aftershock zone`);
+  check((await page.textContent('#takeaway')).includes('Fuera de la zona de réplicas hubo 49 sismos más'), `${vp.name}: takeaway mentions the others`);
   check((await page.textContent('#live-text')) === 'En vivo', `${vp.name}: live status (got ${await page.textContent('#live-text')})`);
   await page.waitForTimeout(vp.name === 'mobile' ? 1500 : 0);
   check((await page.locator('#map .leaflet-interactive').count()) > 300, `${vp.name}: map markers drawn`);
@@ -136,7 +141,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.textContent('#ref-reported')).includes('169 personas'), `${vp.name}: reported DYFI for Panama City (${await page.textContent('#ref-reported')})`);
   check((await page.textContent('#ref-badge-cap')) === 'reportado', `${vp.name}: badge uses the reported value`);
   check((await page.textContent('#n-after-sub')).includes('de M5+'), `${vp.name}: M5+/M6+ in the aftershock tile`);
-  check((await page.locator('#events a[href*="eventdetails.html?unid="]').count()) === 306, `${vp.name}: every row links to EMSC`);
+  check((await page.locator('#events a[href*="eventdetails.html?unid="]').count()) === 355, `${vp.name}: every row links to EMSC`);
   check(/Sismo principal.*vie 9 oct.*lun 12 oct/.test(await page.textContent('#map-legend')), `${vp.name}: day legend on the map`);
   check((await page.locator('#legend-timeline span').count()) >= 5, `${vp.name}: day legend on the timeline`);
   check((await page.locator('#legend-intensity .sw').count()) >= 5, `${vp.name}: intensity legend`);
@@ -151,15 +156,15 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.locator('#map path.latest-ring').count()) === 1, `${vp.name}: latest earthquake rings on the map`);
   check(/EMSC: en vivo/.test(await page.textContent('#sources')) && /USGS: al día/.test(await page.textContent('#sources')), `${vp.name}: sources strip (${await page.textContent('#sources')})`);
   // time of day
-  check((await page.locator('#chart-hours circle.dot').count()) === 306, `${vp.name}: hours chart draws every event (${await page.locator('#chart-hours circle.dot').count()})`);
+  check((await page.locator('#chart-hours circle.dot').count()) === 355, `${vp.name}: hours chart draws every event (${await page.locator('#chart-hours circle.dot').count()})`);
   check((await page.locator('#chart-hours path.bar').count()) === 48 && /noche/.test(await page.textContent('#chart-hours')), `${vp.name}: hours chart has 24 bars and night bands`);
   check(/La noche \(6 p\.m\. a 6 a\.m\.\) es la mitad del día: en ella ocurrió el \d+ %/.test(await page.textContent('#hours-sum')), `${vp.name}: hours summary (${await page.textContent('#hours-sum')})`);
   // depth section
-  check((await page.locator('#chart-depth circle.dot').count()) === 306, `${vp.name}: depth section draws every event (${await page.locator('#chart-depth circle.dot').count()})`);
+  check((await page.locator('#chart-depth circle.dot').count()) === 355, `${vp.name}: depth section draws every event (${await page.locator('#chart-depth circle.dot').count()})`);
   check(/oeste/.test(await page.textContent('#chart-depth')), `${vp.name}: depth section labelled west to east`);
   await page.click('[data-depth-axis="sn"]');
   await page.waitForTimeout(300);
-  check(/norte/.test(await page.textContent('#chart-depth')) && (await page.locator('#chart-depth circle.dot').count()) === 306, `${vp.name}: depth section south to north`);
+  check(/norte/.test(await page.textContent('#chart-depth')) && (await page.locator('#chart-depth circle.dot').count()) === 355, `${vp.name}: depth section south to north`);
   await page.click('[data-depth-axis="we"]');
   // plate boundaries (on by default) and satellite
   await page.waitForSelector('#map .leaflet-plates-pane path', { timeout: 4000 }).catch(() => {});
@@ -177,13 +182,14 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.click('[data-theme-btn="dark"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['hero', 'map-card', 'depth-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
+    for (const id of ['hero', 'tiles', 'map-card', 'depth-card', 'hours-card', 'seq-head']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
   }
   check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(13, 13, 13)'), `${vp.name}: dark theme on demand`);
   await page.click('[data-theme-btn="light"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['map-card', 'depth-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
+    for (const id of ['hero', 'tiles', 'map-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
+    await page.screenshot({ path: join(OUT, `${vp.name}-light-full.png`), fullPage: true });
   }
   check(await page.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgb(249, 249, 247)'), `${vp.name}: light theme on demand`);
   await page.click('[data-theme-btn="auto"]');
@@ -248,7 +254,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   }
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#csv')]);
   const csv = readFileSync(await download.path(), 'utf8');
-  check(csv.trim().split('\n').length === 307 && csv.includes('ficha_emsc'), `${vp.name}: CSV has 306 events + header`);
+  check(csv.trim().split('\n').length === 356 && csv.includes('ficha_emsc'), `${vp.name}: CSV has 355 events + header`);
   if (OUT) { mkdirSync(OUT, { recursive: true }); await page.screenshot({ path: join(OUT, `${vp.name}.png`), fullPage: true }); }
 
   // playback
@@ -299,21 +305,17 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForTimeout(300);
   check((await page.locator('#events tbody tr').count()) === rowsAll && !page.url().includes('periodo'), `${vp.name}: back to everything`);
 
-  // area: the whole region counts the 55 events outside the original zone too
-  await page.click('[data-area="region"]');
+  // aftershocks only: the 49 earthquakes outside the zone leave the table and go gray on the map
+  await page.click('[data-scope="replicas"]');
   await page.waitForTimeout(400);
-  check((await page.textContent('#n-after')) === '360', `${vp.name}: whole region counts 360 aftershocks (got ${await page.textContent('#n-after')})`);
-  check((await page.locator('#events tbody tr').count()) === 361 && page.url().includes('area=region'), `${vp.name}: whole region in the table and the address`);
-  check((await page.textContent('#area-note')).length > 0, `${vp.name}: area note shown`);
-  await page.click('[data-view="zone"]');
-  await page.waitForTimeout(900);
-  await page.click('[data-area="vista"]');
+  check((await page.textContent('#n-after')) === '305', `${vp.name}: aftershock count does not change (${await page.textContent('#n-after')})`);
+  check((await page.locator('#events tbody tr').count()) === 306 && page.url().includes('ver=replicas'), `${vp.name}: aftershocks only in the table and the address`);
+  check((await page.textContent('#area-note')).startsWith('Solo réplicas') && /Fuera de la zona de réplicas/.test(await page.textContent('#map-legend')), `${vp.name}: note and map legend for aftershocks only`);
+  check((await page.getAttribute('[data-view="zone"]', 'aria-pressed')) === 'true', `${vp.name}: map goes to the aftershock zone`);
+  if (OUT) { await page.waitForTimeout(900); await page.locator('#map-card').screenshot({ path: join(OUT, `${vp.name}-replicas-map-card.png`) }); }
+  await page.click('[data-scope="todos"]');
   await page.waitForTimeout(400);
-  const n = Number(await page.textContent('#n-after'));
-  check(/^-?[\d.]+,-?[\d.]+,-?[\d.]+,-?[\d.]+$/.test(new URL(page.url()).searchParams.get('area') || '') && n > 0 && n <= 360, `${vp.name}: map view as the area (${n} aftershocks, ${new URL(page.url()).searchParams.get('area')})`);
-  await page.click('[data-area="zona"]');
-  await page.waitForTimeout(400);
-  check((await page.textContent('#n-after')) === '305' && !page.url().includes('area='), `${vp.name}: back to the aftershock zone`);
+  check((await page.locator('#events tbody tr').count()) === 355 && !page.url().includes('ver='), `${vp.name}: back to all earthquakes`);
 
   // a live event from the WebSocket
   const t = new Date(NOW.getTime() - 60e3).toISOString();
@@ -325,6 +327,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.waitForSelector('#toast:not([hidden])', { timeout: 5000 });
   await page.waitForTimeout(300);
   check((await page.textContent('#n-after')) === '306', `${vp.name}: live event counted`);
+  check((await page.textContent('#hero-tag')) === 'Réplica del M7.7', `${vp.name}: the live quake is tagged as an aftershock`);
   check((await page.textContent('#hero-mag')) === '4.9' && await page.isVisible('#hero-new'), `${vp.name}: hero shows the live quake as new`);
   check(await page.evaluate(() => document.querySelector('#hero').classList.contains('arrived')), `${vp.name}: hero lights up when it arrives`);
   check((await page.locator('#map path.pulse').count()) >= 1, `${vp.name}: ripple on the map`);
@@ -339,14 +342,12 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   const una = { type: 'Feature', id: 'TEST_UNA', geometry: { type: 'Point', coordinates: [-79.36, 8.97, -20] },
     properties: { unid: 'TEST_UNA', time: tu, lastupdate: tu, lat: 8.97, lon: -79.36, depth: 20, mag: 4.7, magtype: 'm', auth: 'UNA', evtype: 'ke', flynn_region: 'PANAMA' } };
   liveFeatures.push(una);
-  await page.click('[data-area="region"]');
   socket.send(JSON.stringify({ action: 'create', data: una }));
   await page.waitForTimeout(800);
-  check((await page.textContent('#n-after')) === '360', `${vp.name}: unconfirmed live event not counted (${await page.textContent('#n-after')})`);
+  check((await page.textContent('#n-out')) === '49' && (await page.locator('#events tbody tr').count()) === 355, `${vp.name}: unconfirmed live event not counted (${await page.textContent('#n-out')})`);
   check((await page.textContent('#unconfirmed-note summary')).startsWith('2 sismos sin confirmar'), `${vp.name}: and listed as unconfirmed`);
   check(!(await page.textContent('#toast')).includes('M4.7'), `${vp.name}: and no toast for it`);
   check((await page.locator('#map path[stroke-dasharray="3 3"]').count()) >= 1, `${vp.name}: unconfirmed drawn hollow and dashed on the map`);
-  await page.click('[data-area="zona"]');
 
   // reference point
   await page.selectOption('#ref-select', 'chitre');

@@ -4,10 +4,13 @@ export const SEQUENCE = {
   title: 'Terremoto M7.7 de Panamá y sus réplicas',
   // The mainshock is the largest event inside `zone` from `start` on.
   start: '2026-10-09T17:50:00Z',
-  // Aftershock zone: every count and chart uses only events inside this box.
+  // Aftershock zone: the sequence's figures and charts (rate, totals, forecast) use
+  // only events inside this box.
   zone: { minLat: 6.5, maxLat: 8.2, minLon: -82.3, maxLon: -79.5 },
-  // Wider area drawn on the map (events outside the zone appear grey).
-  region: { minLat: 5.0, maxLat: 10.0, minLon: -84.0, maxLon: -77.0 },
+  // Panama and its surroundings: everything the page loads and shows (map, latest
+  // quake, table, time of day...). Includes the Caribbean up to 11.5° N and the border
+  // strips with Costa Rica and Colombia, which are felt in Panama too.
+  region: { minLat: 5.0, maxLat: 11.5, minLon: -83.3, maxLon: -77.0 },
   minMag: 2.5,
   // Days before the mainshock that can be shown (off by default; the views start at the mainshock).
   preDays: 7,

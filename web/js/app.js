@@ -37,9 +37,8 @@ const state = {
   rows: [],
   excluded: new Map(), // id -> { es, en }: false events (data/excluded.json)
   igc: new Map(), // id -> event straight from IGC (feed of the IGC monitor)
-  // Filters (also in the address: ?periodo=24h&mag=4). Period 'pre' shows the week before.
-  area: 'zona', // zona | region | vista: which earthquakes count as the sequence
-  areaBox: null, // for 'vista': the map view when it was chosen
+  // Filters (also in the address: ?periodo=24h&mag=4&ver=replicas). Period 'pre' shows the week before.
+  scope: 'todos', // todos: every earthquake in Panama and around | replicas: only the M7.7's aftershocks
   period: 'todo', // pre | todo | hoy | 24h | 6h
   minMag: 0, // 0 = all
   showPre: false,
@@ -52,12 +51,9 @@ const state = {
 
 const PERIODS = ['pre', 'todo', 'hoy', '24h', '6h'];
 
-/** The area whose earthquakes are shown and counted. The mainshock is always found in SEQUENCE.zone. */
-function areaBox() {
-  if (state.area === 'region') return SEQUENCE.region;
-  if (state.area === 'vista' && state.areaBox) return state.areaBox;
-  return SEQUENCE.zone;
-}
+/** The area of the earthquakes shown (map, table, charts of each quake). The sequence's
+ * own figures always use SEQUENCE.zone. */
+const shownBox = () => (state.scope === 'replicas' ? SEQUENCE.zone : SEQUENCE.region);
 const MAGS = [0, 3, 4, 5];
 
 /** Start of the period filter in ms; for the windows, also the start of the time axis. */
@@ -76,7 +72,8 @@ const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.min
 /** Adds or updates an event. Returns whether it just became confirmed (new to the counts). */
 function upsert(ev) {
   if (state.excluded.has(ev.id)) return false;
-  ev.place = placeName(ev.lat, ev.lon, PLACES, ev.region.toUpperCase() === 'COSTA RICA' ? 'Costa Rica' : '');
+  const country = { 'COSTA RICA': 'Costa Rica', COLOMBIA: 'Colombia' }[ev.region.toUpperCase()] || '';
+  ev.place = placeName(ev.lat, ev.lon, PLACES, country);
   const prev = state.events.get(ev.id);
   // A live update only has the preferred solution: keep what we knew about the others.
   if (ev.confirmed == null && prev && prev.origins) { ev.origins = prev.origins; ev.confirmed = prev.confirmed; }
@@ -106,7 +103,8 @@ async function resolve(id, tries = 0) {
   }
 }
 
-/** Mainshock, aftershocks in the zone, everything else in the region, and the week before. */
+/** Mainshock, its aftershocks (inside the zone), the other earthquakes in Panama and
+ * around since then, what is shown (both, or only the aftershocks), and the week before. */
 function derive() {
   const start = new Date(SEQUENCE.start).getTime();
   const emsc = [...state.events.values()];
@@ -122,19 +120,20 @@ function derive() {
   const zone = all.filter((e) => e.t.getTime() >= start && inBox(e, SEQUENCE.zone));
   if (!zone.length) return null;
   const main = zone.reduce((a, b) => (b.mag > a.mag ? b : a));
-  const area = areaBox();
-  const seq = all.filter((e) => e.t > main.t && inBox(e, area)).sort((a, b) => a.t - b.t);
-  const others = all.filter((e) => !inBox(e, area) && e.t >= main.t && e !== main);
+  const seq = all.filter((e) => e.t > main.t && inBox(e, SEQUENCE.zone)).sort((a, b) => a.t - b.t);
+  const others = all.filter((e) => !inBox(e, SEQUENCE.zone) && e.t >= main.t && e !== main).sort((a, b) => a.t - b.t);
+  const shown = state.scope === 'replicas' ? seq : [...seq, ...others].sort((a, b) => a.t - b.t);
   const pre = all.filter((e) => e.t < main.t && e !== main).sort((a, b) => a.t - b.t);
-  pre.forEach((e) => { e.inZone = inBox(e, area); });
+  pre.forEach((e) => { e.inZone = inBox(e, SEQUENCE.zone); });
+  for (const e of all) e.aftershock = e !== main && e.t > main.t && inBox(e, SEQUENCE.zone);
   const days = [];
   const dayOf = new Map();
-  for (const e of [main, ...seq]) {
+  for (const e of [main, ...shown]) {
     const d = fmtDay(e.t);
     if (!dayOf.has(d)) { dayOf.set(d, days.length); days.push(d); }
   }
   const dayIndex = (e) => dayOf.get(fmtDay(e.t)) ?? 0;
-  return { main, seq, others, pre, days, dayIndex, unconfirmed: unconfirmed.filter((e) => e.t >= main.t || state.showPre) };
+  return { main, seq, others, shown, pre, days, dayIndex, unconfirmed: unconfirmed.filter((e) => e.t >= main.t || state.showPre) };
 }
 
 function stats({ main, seq, pre }, now) {
@@ -192,6 +191,7 @@ function dyfiFor(ref) {
 const map = new QuakeMap({
   mapEl: $('#map'), playBtn: $('#map-play'), slider: $('#map-time'), ticks: $('#map-ticks'), timeLabel: $('#map-time-label'),
   viewBtns: [...document.querySelectorAll('[data-view]')], legendEl: $('#map-legend'), zone: SEQUENCE.zone,
+  view: new URLSearchParams(location.search).get('ver') === 'replicas' ? 'zone' : 'country',
 });
 
 let scheduled = false;
@@ -251,10 +251,12 @@ function renderSources(now) {
   box.replaceChildren(...chips);
 }
 
-/** The hero: latest aftershock in the chosen area (the one the headline talks about),
- * whatever the period and magnitude filters. */
+/** The hero: the latest earthquake shown (anywhere in Panama, or the latest aftershock),
+ * whatever the period and magnitude filters, saying whether it is an aftershock. */
 function renderLatest(d, now) {
-  const ev = d.seq.length ? d.seq[d.seq.length - 1] : d.main;
+  const ev = d.shown.length ? d.shown[d.shown.length - 1] : d.main;
+  setText('#hero-tag', ev === d.main ? t('hero.tagMain') : ev.aftershock ? t('hero.tagSeq', fmtMag(d.main.mag)) : t('hero.tagOut'));
+  $('#hero-tag').dataset.kind = ev.aftershock || ev === d.main ? 'seq' : 'out';
   const ref = state.ref;
   const km = epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon);
   const mmi = estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust);
@@ -308,8 +310,9 @@ function render() {
   if (!d) return;
   const now = Date.now();
   const s = stats(d, now);
-  const { main, seq } = d;
+  const { main, seq, others, shown } = d;
   const ref = state.ref;
+  const latest = shown.length ? shown[shown.length - 1] : null;
 
   // headline figures + takeaway
   setText('#main-mag', `M${fmtMag(main.mag)}`);
@@ -323,15 +326,19 @@ function render() {
   setText('#freq-sub', t('freq.sub', fmtRate(s.rateFirst6)));
   setText('#m4-rate', fmtRate(s.m4Last12));
   setText('#m4-sub', t('m4.sub', fmtRate(s.m4First12)));
+  const bigOut = others.length ? others.reduce((a, b) => (b.mag > a.mag ? b : a)) : null;
+  setText('#n-out', fmtInt(others.length));
+  setText('#n-out-sub', bigOut ? t('out.sub', fmtDay(main.t), fmtMag(bigOut.mag), bigOut.place) : t('out.none', fmtDay(main.t)));
   renderLatest(d, now);
 
   const take = [t('take.count', fmtInt(seq.length), fmtTime(main.t)).replace(/\.\.$/, '.')];
   if (s.span >= 24) take.push(t('take.rate', fmtRate(s.m4First12), fmtRate(s.m4Last12), fmtRate(s.rateFirst12), fmtRate(s.rateLast12)));
-  if (s.latest) take.push(t('take.latest', fmtMag(s.latest.mag), s.latest.place, ago(s.latest.t, now)));
+  if (others.length) take.push(t('take.others', fmtInt(others.length), fmtMag(bigOut.mag), bigOut.place));
+  if (latest) take.push(t('take.latest', fmtMag(latest.mag), latest.place, ago(latest.t, now)));
   setText('#takeaway', take.join(' '));
 
   // reference point: reported (DYFI) when the town has reports, estimated always
-  const rows = [main, ...seq].map((ev) => ({ ev, km: epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon), mmi: estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust) }));
+  const rows = [main, ...shown].map((ev) => ({ ev, km: epicentralKm(ev.lat, ev.lon, ref.lat, ref.lon), mmi: estimateMmi(ev, ref.lat, ref.lon, ref.siteAdjust) }));
   const mainRow = rows[0];
   const reported = dyfiFor(ref);
   setText('#ref-name', ref.name);
@@ -343,7 +350,7 @@ function render() {
   const top = day.length ? day.reduce((a, b) => (b.mmi > a.mmi ? b : a)) : null;
   setText('#ref-day', top ? `${describeMmi(top.mmi)} · M${fmtMag(top.ev.mag)}, ${ago(top.ev.t, now)}` : t('ref.dayNone'));
   const felt = rows.filter((r) => r.ev !== main && r.mmi >= 2.5).length;
-  setText('#ref-felt', t('ref.felt', fmtInt(felt), fmtInt(seq.length), ref.name));
+  setText('#ref-felt', t('ref.felt', fmtInt(felt), fmtInt(shown.length), ref.name));
   const badgeMmi = reported ? reported.cdi : mainRow.mmi;
   const badge = $('#ref-badge');
   badge.textContent = ROMAN[mmiLevel(badgeMmi)];
@@ -356,11 +363,12 @@ function render() {
     seq, main, now, windows: s.windows, bands: s.bands, rows, ref,
     pre: d.pre, showPre: state.showPre, preDays: SEQUENCE.preDays, dayIndex: d.dayIndex, palette,
   };
-  // What the filters let through: map, timeline, intensity chart, table and CSV.
+  // What the filters let through: map, timeline, depth, time of day, intensity chart,
+  // table and CSV (every earthquake shown, not only aftershocks).
   const fromT = periodStart(main, now);
   const pass = (e) => e.t.getTime() >= fromT && e.mag >= state.minMag;
   const mainIn = main.t.getTime() >= fromT;
-  const seqV = seq.filter(pass);
+  const seqV = shown.filter(pass);
   const preV = state.showPre ? d.pre.filter(pass) : [];
   const rowsV = rows.filter((r) => (r.ev === main ? mainIn : pass(r.ev)));
   state.rows = rowsV;
@@ -369,10 +377,10 @@ function render() {
   chart('#chart-timeline', drawTimeline, view);
   const depthNode = $('#chart-depth');
   depthNode.classList.remove('skeleton');
-  const dep = drawDepth(depthNode, { ...view, axis: state.depthAxis, places: PLACES, box: areaBox() });
+  const dep = drawDepth(depthNode, { ...view, axis: state.depthAxis, places: PLACES, box: shownBox() });
   setText('#depth-fixed', [dep.fixed ? t('depth.fixed', fmtInt(dep.fixed), fmtInt(dep.total)) : '',
     dep.clipped ? t('depth.clipped', fmtInt(dep.clipped), dep.maxDepth) : ''].filter(Boolean).join(' '));
-  dayLegend($('#legend-timeline'), opts);
+  dayLegend($('#legend-timeline'), { ...opts, palette });
   const hoursNode = $('#chart-hours');
   hoursNode.classList.remove('skeleton');
   const hb = drawHours(hoursNode, { rows: rowsV, ref, main, mainIn });
@@ -381,13 +389,13 @@ function render() {
   mmiLegend($('#legend-hours'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
   $('#legend-hours').prepend(Object.assign(document.createElement('span'), { className: 'muted', textContent: t('hours.legend', ref.name) }));
   const filtered = state.period !== 'todo' || state.minMag > 0;
-  setText('#area-note', state.area === 'zona' ? '' : t('f.areaNote', t('f.areaDesc')[state.area]));
+  setText('#area-note', t(state.scope === 'replicas' ? 'f.scopeSeq' : 'f.scopeAll'));
   setText('#view-note', filtered
     ? t('f.showing', t('f.desc')[state.period], state.minMag ? `M${state.minMag}+` : '', fmtInt(rowsV.length + preV.length))
     : '');
   const preZone = d.pre.filter((e) => e.inZone);
   setText('#pre-note', state.showPre
-    ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '', state.area === 'zona')
+    ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '', true)
     : '');
   const stepH = Math.max(1, Math.ceil((now - main.t) / H / 300)); // at most ~300 points
   const series = rateSeries(seq, { start: main.t.getTime(), end: now, windowH: 6, stepH, mmiOf: (e) => estimateMmi(e, ref.lat, ref.lon, ref.siteAdjust) });
@@ -399,10 +407,10 @@ function render() {
   mmiLegend($('#legend-intensity'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
   renderDyfi(main, reported);
   renderForecast();
-  map.setArea(areaBox());
   map.setData({
-    main, seq: seqV, others: d.others.filter(pass), pre: preV, unconfirmed: d.unconfirmed, dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre,
-    now: Math.max(now, (s.latest || main).t.getTime()), from: windowed ? fromT : null,
+    main, seq: seqV, others: state.scope === 'replicas' ? others.filter(pass) : [], pre: preV, unconfirmed: d.unconfirmed,
+    dayIndex: d.dayIndex, days: d.days, ref, showPre: state.showPre, scope: state.scope,
+    now: Math.max(now, (latest || main).t.getTime()), from: windowed ? fromT : null,
   });
   renderTable(rowsV, main);
   renderUnconfirmed(d.unconfirmed);
@@ -837,39 +845,30 @@ function setupFilters() {
     const q = new URLSearchParams(location.search);
     if (PERIODS.includes(q.get('periodo'))) state.period = q.get('periodo');
     if (MAGS.includes(Number(q.get('mag')))) state.minMag = Number(q.get('mag'));
-    const a = q.get('area');
-    if (a === 'region') state.area = 'region';
-    const box = /^(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)$/.exec(a || '');
-    if (box) {
-      const [minLat, minLon, maxLat, maxLon] = box.slice(1).map(Number);
-      if (minLat < maxLat && minLon < maxLon) { state.area = 'vista'; state.areaBox = { minLat, minLon, maxLat, maxLon }; }
-    }
+    if (q.get('ver') === 'replicas') state.scope = 'replicas';
   } catch { /* no query string */ }
   const sync = () => {
     state.showPre = state.period === 'pre';
     document.querySelectorAll('[data-period]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.period === state.period)));
     document.querySelectorAll('[data-mag]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.mag) === state.minMag)));
-    document.querySelectorAll('[data-area]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.area === state.area)));
+    document.querySelectorAll('[data-scope]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scope === state.scope)));
     try {
       const u = new URL(location.href);
       if (state.period === 'todo') u.searchParams.delete('periodo'); else u.searchParams.set('periodo', state.period);
       if (state.minMag) u.searchParams.set('mag', String(state.minMag)); else u.searchParams.delete('mag');
-      const ab = state.areaBox;
-      if (state.area === 'zona') u.searchParams.delete('area');
-      else u.searchParams.set('area', state.area === 'region' ? 'region' : [ab.minLat, ab.minLon, ab.maxLat, ab.maxLon].join(','));
+      u.searchParams.delete('area'); // older links
+      if (state.scope === 'replicas') u.searchParams.set('ver', 'replicas'); else u.searchParams.delete('ver');
       history.replaceState(history.state, '', u);
     } catch { /* not allowed here */ }
   };
   document.querySelectorAll('[data-period]').forEach((b) => b.addEventListener('click', () => { state.period = b.dataset.period; sync(); scheduleRender(); track('filter', { kind: 'period', value: state.period }); }));
   document.querySelectorAll('[data-mag]').forEach((b) => b.addEventListener('click', () => { state.minMag = Number(b.dataset.mag); sync(); scheduleRender(); track('filter', { kind: 'magnitude', value: String(state.minMag) }); }));
-  document.querySelectorAll('[data-area]').forEach((b) => b.addEventListener('click', () => {
-    state.area = b.dataset.area;
-    // "Map view" takes what the map shows right now; pressing it again after moving the map updates it.
-    if (state.area === 'vista') state.areaBox = map.visibleBox(SEQUENCE.region);
-    map.setArea(areaBox(), state.area !== 'vista');
+  document.querySelectorAll('[data-scope]').forEach((b) => b.addEventListener('click', () => {
+    state.scope = b.dataset.scope;
+    map.showView(state.scope === 'replicas' ? 'zone' : 'country');
     sync();
     scheduleRender();
-    track('filter', { kind: 'area', value: state.area });
+    track('filter', { kind: 'scope', value: state.scope });
   }));
   sync();
 }
