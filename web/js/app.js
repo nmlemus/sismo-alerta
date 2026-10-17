@@ -5,7 +5,7 @@ import { Alarm } from './alarm.js';
 import { LiveFeed, emscLink, fetchEvent, fetchSince, fetchUpdated } from './emsc.js';
 import { MMI_COLORS, ROMAN, describeMmi, epicentralKm, estimateMmi, mmiLevel, placeName } from './intensity.js';
 import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate, fmtTime } from './format.js';
-import { dayLegend, drawDepth, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
+import { dayLegend, drawDepth, drawHours, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
 import { rateSeries } from './stats.js';
@@ -373,6 +373,13 @@ function render() {
   setText('#depth-fixed', [dep.fixed ? t('depth.fixed', fmtInt(dep.fixed), fmtInt(dep.total)) : '',
     dep.clipped ? t('depth.clipped', fmtInt(dep.clipped), dep.maxDepth) : ''].filter(Boolean).join(' '));
   dayLegend($('#legend-timeline'), opts);
+  const hoursNode = $('#chart-hours');
+  hoursNode.classList.remove('skeleton');
+  const hb = drawHours(hoursNode, { rows: rowsV, ref, main, mainIn });
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+  setText('#hours-sum', hb.n >= 20 ? t('hours.sum', pct(hb.night.n, hb.n), pct(hb.night.m4, hb.m4), hb.m4) : '');
+  mmiLegend($('#legend-hours'), 1, Math.max(5, Math.min(10, mmiLevel(mainRow.mmi) + 1)));
+  $('#legend-hours').prepend(Object.assign(document.createElement('span'), { className: 'muted', textContent: t('hours.legend', ref.name) }));
   const filtered = state.period !== 'todo' || state.minMag > 0;
   setText('#area-note', state.area === 'zona' ? '' : t('f.areaNote', t('f.areaDesc')[state.area]));
   setText('#view-note', filtered

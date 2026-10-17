@@ -33,3 +33,31 @@ export function rateSeries(events, { start, end, windowH = 6, stepH = 1, mmiOf =
     };
   });
 }
+
+const PANAMA_OFFSET_H = -5; // Panama has no daylight saving time
+
+/** Local hour of the day (0–24, with minutes as a fraction) in Panama. */
+export const localHour = (t) => {
+  const d = new Date(t.getTime() + PANAMA_OFFSET_H * H);
+  return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+};
+
+/** Night: 6 p.m. to 6 a.m., when there is less traffic and machinery shaking the ground. */
+export const isNight = (hour) => hour >= 18 || hour < 6;
+
+/**
+ * Earthquakes by hour of the day (Panama time): count and M4+ count for each of the
+ * 24 hours, and how many of them happened at night.
+ */
+export function byHour(events) {
+  const hours = Array.from({ length: 24 }, (_, h) => ({ h, n: 0, m4: 0 }));
+  const night = { n: 0, m4: 0 };
+  for (const e of events) {
+    const hr = localHour(e.t);
+    const b = hours[Math.floor(hr) % 24];
+    b.n++;
+    if (e.mag >= 4) b.m4++;
+    if (isNight(hr)) { night.n++; if (e.mag >= 4) night.m4++; }
+  }
+  return { hours, night, n: events.length, m4: events.filter((e) => e.mag >= 4).length };
+}

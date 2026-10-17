@@ -306,6 +306,7 @@ path.latest-ring { animation: ring 2.6s ease-out infinite; }
 .chart text.strong, .chart text.label.strong { fill: var(--ink); font-weight: 600; }
 .chart text.label { fill: var(--ink-2); }
 .chart .grid { stroke: var(--grid); }
+.chart .night { fill: var(--grid); opacity: 0.45; }
 .chart .axis { stroke: var(--axis); }
 .chart .ref, .chart .model { stroke: var(--ink-2); stroke-dasharray: 5 4; fill: none; stroke-width: 1.5; }
 .chart .crosshair { stroke: var(--axis); }

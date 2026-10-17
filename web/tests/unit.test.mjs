@@ -225,3 +225,19 @@ test('propagation: fronts, reach and intensity zones', () => {
   assert.equal(fastSpeed(30, ev), 1, 'small ones play in real time');
   assert.ok(fastSpeed(800, { ...ev, mag: 7.7 }) > 15, 'big ones are sped up');
 });
+
+test('earthquakes by hour of the day, in Panama time', async () => {
+  const { byHour, isNight, localHour } = await import('../js/stats.js');
+  const at = (iso, mag) => ({ t: new Date(iso), mag });
+  close(localHour(new Date('2026-10-09T17:56:06Z')), 12.935, 0.001); // 12:56 p.m. local
+  assert.equal(localHour(new Date('2026-10-10T04:30:00Z')), 23.5);
+  assert.ok(isNight(23.5) && isNight(0) && isNight(5.99) && !isNight(6) && !isNight(17.99) && isNight(18));
+  const hb = byHour([at('2026-10-10T04:30:00Z', 3.1), at('2026-10-10T05:10:00Z', 4.2), at('2026-10-10T17:00:00Z', 4.0), at('2026-10-11T04:59:00Z', 2.8)]);
+  assert.equal(hb.hours.length, 24);
+  assert.deepEqual(hb.hours[23], { h: 23, n: 2, m4: 0 });
+  assert.deepEqual(hb.hours[0], { h: 0, n: 1, m4: 1 });
+  assert.deepEqual(hb.hours[12], { h: 12, n: 1, m4: 1 });
+  assert.deepEqual(hb.night, { n: 3, m4: 1 });
+  assert.equal(hb.n, 4);
+  assert.equal(hb.m4, 2);
+});

@@ -142,6 +142,17 @@ const STR = {
     'hero.shareText': (mag, place, time, felt, url) => `Sismo M${mag}, ${place}, ${time}. ${felt} Sigue las réplicas en vivo: ${url}`,
     'hero.shareFelt': (desc, name) => `Intensidad estimada en ${name}: ${desc}.`,
     'tg.cta': 'Avisos en Telegram',
+    'hours.h2': 'A qué hora del día ocurren',
+    'hours.note': 'Cada punto es un sismo, según la hora del día en que ocurrió (hora de Panamá) y su magnitud; el color es la intensidad estimada en el lugar de referencia. Arriba, cuántos hubo en cada hora, con los de M4 o más en la base de cada barra. Los sismos no dependen de la hora: si de noche aparecen más pequeños es porque hay menos ruido de tráfico y máquinas, y las estaciones los detectan mejor. No hay una hora más peligrosa.',
+    'hours.night': '☾ noche',
+    'hours.tick': (h) => (h % 24 === 0 ? '12 a.m.' : h === 12 ? '12 m.' : h < 12 ? `${h} a.m.` : `${h - 12} p.m.`),
+    'hours.range': (h) => {
+      const c = (x) => (x % 24 === 0 ? '12 a.m.' : x === 12 ? '12 m.' : x < 12 ? `${x} a.m.` : `${x - 12} p.m.`);
+      return `De ${c(h)} a ${c(h + 1)}`;
+    },
+    'hours.barAll': (n) => `${n} ${pl(n, 'sismo', 'sismos')} en total`,
+    'hours.sum': (all, m4, nM4) => `La noche (6 p.m. a 6 a.m.) es la mitad del día: en ella ocurrió el ${all} % de estos sismos${nM4 >= 10 ? ` y el ${m4} % de los de M4 o más` : ''}.`,
+    'hours.legend': (name) => `Color: intensidad estimada en ${name}`,
     'depth.h2': 'A qué profundidad ocurren',
     'depth.dirAria': 'Dirección del corte',
     'depth.we': 'Oeste → este',
@@ -441,6 +452,17 @@ const STR = {
     'hero.shareText': (mag, place, time, felt, url) => `M${mag} earthquake, ${place}, ${time}. ${felt} Follow the aftershocks live: ${url}`,
     'hero.shareFelt': (desc, name) => `Estimated intensity in ${name}: ${desc}.`,
     'tg.cta': 'Alerts on Telegram',
+    'hours.h2': 'What time of day they happen',
+    'hours.note': 'Each dot is an earthquake, by the time of day it happened (Panama time) and its magnitude; the color is the intensity estimated at the reference point. On top, how many there were in each hour, with M4+ at the base of each bar. Earthquakes don’t depend on the time of day: if more small ones show up at night, it’s because there is less noise from traffic and machinery and the stations detect them better. No hour is more dangerous.',
+    'hours.night': '☾ night',
+    'hours.tick': (h) => (h % 24 === 0 ? '12am' : h === 12 ? 'noon' : h < 12 ? `${h}am` : `${h - 12}pm`),
+    'hours.range': (h) => {
+      const c = (x) => (x % 24 === 0 ? '12am' : x === 12 ? 'noon' : x < 12 ? `${x}am` : `${x - 12}pm`);
+      return `From ${c(h)} to ${c(h + 1)}`;
+    },
+    'hours.barAll': (n) => `${n} ${pl(n, 'earthquake', 'earthquakes')} in all`,
+    'hours.sum': (all, m4, nM4) => `Night (6pm to 6am) is half the day: ${all}% of these earthquakes happened then${nM4 >= 10 ? `, and ${m4}% of the M4+ ones` : ''}.`,
+    'hours.legend': (name) => `Color: estimated intensity in ${name}`,
     'depth.h2': 'How deep they are',
     'depth.dirAria': 'Direction of the section',
     'depth.we': 'West → east',

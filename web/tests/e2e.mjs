@@ -150,6 +150,10 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   check((await page.getAttribute('#tg-cta', 'href')) === 'https://t.me/sismos_panama_live', `${vp.name}: Telegram channel link`);
   check((await page.locator('#map path.latest-ring').count()) === 1, `${vp.name}: latest earthquake rings on the map`);
   check(/EMSC: en vivo/.test(await page.textContent('#sources')) && /USGS: al día/.test(await page.textContent('#sources')), `${vp.name}: sources strip (${await page.textContent('#sources')})`);
+  // time of day
+  check((await page.locator('#chart-hours circle.dot').count()) === 306, `${vp.name}: hours chart draws every event (${await page.locator('#chart-hours circle.dot').count()})`);
+  check((await page.locator('#chart-hours path.bar').count()) === 48 && /noche/.test(await page.textContent('#chart-hours')), `${vp.name}: hours chart has 24 bars and night bands`);
+  check(/La noche \(6 p\.m\. a 6 a\.m\.\) es la mitad del día: en ella ocurrió el \d+ %/.test(await page.textContent('#hours-sum')), `${vp.name}: hours summary (${await page.textContent('#hours-sum')})`);
   // depth section
   check((await page.locator('#chart-depth circle.dot').count()) === 306, `${vp.name}: depth section draws every event (${await page.locator('#chart-depth circle.dot').count()})`);
   check(/oeste/.test(await page.textContent('#chart-depth')), `${vp.name}: depth section labelled west to east`);
@@ -173,13 +177,13 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.click('[data-theme-btn="dark"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['hero', 'map-card', 'depth-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
+    for (const id of ['hero', 'map-card', 'depth-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
   }
   check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(13, 13, 13)'), `${vp.name}: dark theme on demand`);
   await page.click('[data-theme-btn="light"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['map-card', 'depth-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
+    for (const id of ['map-card', 'depth-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
   }
   check(await page.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgb(249, 249, 247)'), `${vp.name}: light theme on demand`);
   await page.click('[data-theme-btn="auto"]');

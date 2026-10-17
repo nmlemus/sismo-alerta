@@ -6,6 +6,7 @@ import { fmtInt, fmtMag, fmtRate, fmtTime, tickLabel, wall } from './format.js';
 import { token } from './theme.js';
 import { emscLink } from './emsc.js';
 import { localName, t } from './i18n.js';
+import { byHour, localHour } from './stats.js';
 
 const d3 = globalThis.d3;
 
@@ -83,7 +84,7 @@ function barPath(x, y, w, h, r = 4) {
  * a mouse click goes straight there; a tap (no hover on touch screens) pins the
  * tooltip with the link inside it.
  */
-function nearestHover(el, svg, pts, onShow, linkOf) {
+function nearestHover(el, svg, pts, onShow, linkOf, { top = -Infinity } = {}) {
   const tip = tooltip(el);
   const ring = svg.append('circle').attr('class', 'hover-ring').attr('opacity', 0);
   const del = d3.Delaunay.from(pts.map((p) => [p.x, p.y]));
@@ -99,14 +100,19 @@ function nearestHover(el, svg, pts, onShow, linkOf) {
   };
   const unpin = () => { pinned = false; tip.hide(); ring.attr('opacity', 0); };
   svg.on('pointerdown', (ev) => { pointerType = ev.pointerType || 'mouse'; })
-    .on('pointermove', (ev) => { if (!pinned && ev.pointerType !== 'touch') show(nearest(ev), false); })
+    .on('pointermove', (ev) => {
+      if (pinned || ev.pointerType === 'touch') return;
+      if (d3.pointer(ev)[1] < top) { tip.hide(); ring.attr('opacity', 0); return; }
+      show(nearest(ev), false);
+    })
     .on('pointerleave', () => { if (!pinned) unpin(); });
   if (!linkOf) {
     // Without links, a tap just shows the tooltip.
-    svg.on('click', (ev) => { if (pointerType === 'touch') show(nearest(ev), false); });
+    svg.on('click', (ev) => { if (pointerType === 'touch' && d3.pointer(ev)[1] >= top) show(nearest(ev), false); });
     return;
   }
   svg.style('cursor', 'pointer').on('click', (ev) => {
+    if (d3.pointer(ev)[1] < top) return;
     const p = nearest(ev);
     if (pointerType !== 'touch') { window.open(linkOf(p.d), '_blank', 'noopener'); return; }
     pinned = true;
@@ -526,4 +532,82 @@ export function drawDepth(el, { seq, main, pre, showPre, dayIndex, palette, main
   nearestHover(el, svg, all.map((d) => ({ d, x: x(pos(d)), y: y(Math.min(d.depth, maxDepth)), r: radiusFor(d.mag) })),
     (d) => [fmtTime(d.t), t('depth.tip', fmtMag(d.mag), d.depth), d.place], emscLink);
   return { fixed: all.filter((d) => d.depth === 10).length, total: all.length, clipped, maxDepth };
+}
+
+
+/**
+ * When in the day they happen: every earthquake by its local hour (Panama time) and
+ * magnitude, colored by the intensity estimated at the reference point, with the
+ * night (6 p.m.–6 a.m.) shaded. On top, how many happened in each hour (M4+ at the
+ * bottom of each bar). Returns the counts, for the summary under the chart.
+ */
+export function drawHours(el, { rows, ref, main, mainIn = true }) {
+  const { svg, W, H } = newSvg(el, 340);
+  const evs = rows.map((r) => r.ev);
+  const hb = byHour(evs);
+  const histH = 72, gap = 22;
+  const m = { l: 0, r: 12, t: 10, b: 30 };
+  const yh = d3.scaleLinear([0, Math.max(1, d3.max(hb.hours, (b) => b.n))], [m.t + histH, m.t]).nice();
+  const hticks = yh.ticks(2);
+  m.l = Math.max(textWidth(svg, '8', 'tick'), textWidth(svg, fmtInt(d3.max(hticks)), 'tick')) + 14;
+  const x = d3.scaleLinear([0, 24], [m.l, W - m.r]);
+  const p0 = m.t + histH + gap, p1 = H - m.b;
+  const top = Math.max(5.5, (d3.max(evs, (e) => e.mag) ?? 5) + 0.4);
+  const y = d3.scaleLinear([2.3, top], [p1, p0]);
+
+  // night bands, behind everything
+  for (const [a, b] of [[0, 6], [18, 24]]) {
+    svg.append('rect').attr('class', 'night').attr('x', x(a)).attr('width', x(b) - x(a)).attr('y', m.t).attr('height', p1 - m.t);
+    svg.append('text').attr('class', 'tick').attr('x', x((a + b) / 2)).attr('y', p0 - 6).attr('text-anchor', 'middle').text(t('hours.night'));
+  }
+  yAxis(svg, yh, hticks, m.l, W - m.r, fmtInt);
+  yAxis(svg, y, [3, 4, 5, 6, 7, 8].filter((v) => v <= top), m.l, W - m.r);
+  svg.append('line').attr('class', 'axis').attr('x1', m.l).attr('x2', W - m.r).attr('y1', yh(0)).attr('y2', yh(0));
+  svg.append('line').attr('class', 'axis').attr('x1', m.l).attr('x2', W - m.r).attr('y1', p1).attr('y2', p1);
+  const every = W < 480 ? 6 : 3;
+  for (let h = 0; h <= 24; h += every) {
+    svg.append('text').attr('class', `tick${h % 12 === 0 ? ' strong' : ''}`).attr('x', x(h)).attr('y', p1 + 18)
+      .attr('text-anchor', h === 0 ? 'start' : h === 24 ? 'end' : 'middle').text(t('hours.tick', h));
+  }
+
+  // how many in each hour (M4+ at the bottom of the bar)
+  const step = x(1) - x(0), bw = Math.max(2, step * 0.78);
+  const tip = tooltip(el);
+  for (const b of hb.hours) {
+    const bx = x(b.h) + (step - bw) / 2;
+    const yM4 = yh(b.m4), yAll = yh(b.n);
+    const gapPx = b.m4 > 0 && b.n > b.m4 ? 1.5 : 0;
+    svg.append('path').attr('class', 'bar s2').attr('d', barPath(bx, yM4, bw, yh(0) - yM4, b.n > b.m4 ? 0 : 3));
+    svg.append('path').attr('class', 'bar s1').attr('d', barPath(bx, yAll, bw, yM4 - yAll - gapPx, 3));
+    svg.append('rect').attr('x', x(b.h)).attr('width', step).attr('y', 0).attr('height', m.t + histH + 4).attr('fill', 'transparent')
+      .on('pointermove click', (ev) => {
+        const [px, py] = d3.pointer(ev, el);
+        tip.show([t('hours.range', b.h), [token('--series-1'), t('hours.barAll', fmtInt(b.n))], [token('--series-2'), t('win.m4', fmtInt(b.m4))]], px, py);
+      })
+      .on('pointerleave', () => tip.hide());
+  }
+
+  if (!rows.length) {
+    svg.append('text').attr('class', 'label').attr('x', (m.l + W - m.r) / 2).attr('y', (p0 + p1) / 2).attr('text-anchor', 'middle').text(t('f.empty'));
+    return hb;
+  }
+  const isMain = (r) => r.ev === main;
+  const R = (r) => (isMain(r) ? 6 : 3.5);
+  const pts = rows.map((r) => ({ d: r, x: x(localHour(r.ev.t)), y: y(r.ev.mag), r: R(r) }));
+  const sorted = [...pts].sort((a, b) => a.d.ev.mag - b.d.ev.mag); // the big ones on top
+  svg.append('g').selectAll('circle').data(sorted).join('circle')
+    .attr('class', 'dot mmi').attr('fill', (p) => MMI_COLORS[mmiLevel(p.d.mmi)])
+    .attr('cx', (p) => p.x).attr('cy', (p) => p.y).attr('r', (p) => p.r);
+  if (mainIn && main) {
+    const p = pts.find((q) => isMain(q.d));
+    if (p) {
+      const right = p.x < W * 0.7;
+      svg.append('text').attr('class', 'label strong').attr('x', p.x + (right ? 1 : -1) * (p.r + 6)).attr('y', p.y).attr('dy', '0.32em')
+        .attr('text-anchor', right ? 'start' : 'end').text(t('tl.mainLbl', fmtMag(main.mag)));
+    }
+  }
+  nearestHover(el, svg, pts,
+    (r) => [fmtTime(r.ev.t), t('int.tip', fmtMag(r.ev.mag), Math.round(r.km), localName(ref)), t('int.est', describeMmi(r.mmi)), r.ev.place],
+    (r) => emscLink(r.ev), { top: p0 - gap / 2 });
+  return hb;
 }
