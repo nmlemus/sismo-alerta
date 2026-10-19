@@ -236,8 +236,8 @@
 
     <section class="card" id="rate-card">
       <h2 data-i18n="rate.h2">Frecuencia e intensidad en el tiempo</h2>
-      <p class="note" data-i18n="rate.note">Cada punto cuenta los sismos de las 6 horas anteriores. Arriba, cuántos llegan por hora (escala logarítmica: cada salto de la cuadrícula multiplica por 3 o por 10); en medio, su magnitud promedio; abajo, la intensidad promedio que tendrían en el lugar de referencia. Las primeras horas cuentan de menos: muchas réplicas pequeñas no se lograron detectar.</p>
-      <div class="legend top"><span><i class="sw s1"></i><span data-i18n="leg.all">Todas (M2.5+)</span></span><span><i class="sw s2"></i><span data-i18n="leg.m4">M4 o más</span></span></div>
+      <p class="note" data-i18n="rate.note">Cada punto se calcula con las últimas 20 réplicas (10 para las de M4+), sin importar cuánto tiempo abarquen: al principio eso es unos minutos, días después son muchas horas. Así una réplica nueva mueve la curva apenas un poco, y mientras no llegan otras, la curva baja sola. Arriba, cuántas llegan por hora (escala logarítmica: cada salto de la cuadrícula multiplica por 3 o por 10) y, punteado, lo que se espera según la ley de Omori, que describe cómo suelen ir bajando las réplicas; en medio, la magnitud promedio de esas 20; abajo, la intensidad promedio que tendrían en el lugar de referencia. Las primeras horas cuentan de menos: muchas réplicas pequeñas no se lograron detectar.</p>
+      <div class="legend top"><span><i class="sw s1"></i><span data-i18n="leg.all">Todas (M2.5+)</span></span><span><i class="sw s2"></i><span data-i18n="leg.m4">M4 o más</span></span><span><svg width="22" height="8" aria-hidden="true"><line x1="1" y1="4" x2="21" y2="4" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/></svg><span data-i18n="leg.omori">Lo esperado (ley de Omori)</span></span></div>
       <div class="chart skeleton" id="chart-rate"></div>
     </section>
 

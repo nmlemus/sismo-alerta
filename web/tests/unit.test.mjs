@@ -118,25 +118,42 @@ test('English: place names, intensity labels, forecast windows and CSV header', 
 });
 
 // ---------------------------------------------------------------- frequency
-import { rateSeries } from '../js/stats.js';
+import { eventRateSeries, omoriFit } from '../js/stats.js';
 
-test('frequency: rolling 6-hour window, per hour, with means once there are enough events', () => {
+test('frequency from the last k earthquakes: no spike when one arrives, lower while quiet', () => {
   const t0 = Date.parse('2026-10-09T18:00:00Z');
   const at = (h, mag) => ({ t: new Date(t0 + h * 3600e3), mag });
   const evs = [at(0.5, 5), at(1.5, 3), at(2.5, 4), at(3.5, 3), at(7.5, 3)];
-  const s = rateSeries(evs, { start: t0, end: t0 + 8 * 3600e3, windowH: 6, mmiOf: (e) => e.mag - 1 });
+  const s = eventRateSeries(evs, { start: t0, end: t0 + 8 * 3600e3, k: 3, kM4: 2, minN: 2, mmiOf: (e) => e.mag - 1 });
   assert.equal(s.length, 8);
-  // at 4 h: 4 events in the 4 hours since the start (window can't reach back further)
-  assert.equal(s[3].n, 4);
-  assert.equal(s[3].rate, 1);
+  // at 4 h: the last 3 (1.5, 2.5, 3.5 h) since the one before them (0.5 h): 3 in 3.5 h
+  close(s[3].rate, 3 / 3.5, 1e-9);
+  close(s[3].meanMag, 10 / 3, 1e-9);
+  close(s[3].meanMmi, 7 / 3, 1e-9);
+  // M4+: the 2 of them since the start, in 4 h
   assert.equal(s[3].rateM4, 0.5);
-  assert.equal(s[3].meanMag, 3.75);
-  assert.equal(s[3].meanMmi, 2.75);
-  // at 8 h: window 2–8 h holds 2.5, 3.5 and 7.5 → 3 events / 6 h
-  assert.equal(s[7].n, 3);
-  assert.equal(s[7].rate, 0.5);
-  // fewer than 3 events: no mean
+  // quiet from 3.5 h to 7.5 h: it keeps going down…
+  assert.ok(s[4].rate > s[5].rate && s[5].rate > s[6].rate);
+  // …and the quake at 7.5 h doesn't make it jump (3 in 6.5 h, before and after)
+  close(s[6].rate, 3 / 6.5, 1e-9);
+  close(s[7].rate, 3 / 6.5, 1e-9);
+  // fewer than minN events: zero and no mean
+  assert.equal(s[0].rate, 0);
   assert.equal(s[0].meanMag, null);
+});
+
+test('Omori law fit recovers how fast aftershocks die down', () => {
+  // aftershock times that follow K / (t + c)^p exactly (one per unit of the cumulative count)
+  const K = 30, c = 0.1, p = 1.1;
+  const cum = (t) => (K * ((t + c) ** (1 - p) - c ** (1 - p))) / (1 - p);
+  const inv = (n) => ((n * (1 - p)) / K + c ** (1 - p)) ** (1 / (1 - p)) - c;
+  const T = 200;
+  const hours = [];
+  for (let n = 0.5; n < cum(T); n++) hours.push(inv(n));
+  const fit = omoriFit(hours, { tMin: 1, T });
+  close(fit.p, 1.1, 0.08);
+  close(fit.rate(100), K / (100 + c) ** p, (K / (100 + c) ** p) * 0.15);
+  assert.equal(omoriFit(hours.slice(0, 10), { tMin: 0, T }), null); // too few
 });
 
 // ---------------------------------------------------------------- confirmation

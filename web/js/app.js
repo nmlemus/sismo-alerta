@@ -8,7 +8,7 @@ import { ago, duration, wall, fmtClock, fmtDay, fmtInt, fmtMag, fmtPct, fmtRate,
 import { dayLegend, drawDepth, drawHours, drawRate, drawBands, drawCumulative, drawDyfi, drawIntensity, drawTimeline, drawWindows, mmiLegend } from './charts.js';
 import { QuakeMap } from './map.js';
 import { buildCsv } from './csv.js';
-import { rateSeries } from './stats.js';
+import { eventRateSeries, omoriFit } from './stats.js';
 import { fetchIgcFeed, igcChannel, igcOn, igcOnly, sameQuake } from './igc.js';
 import { playWave, renderHero, shareUrl } from './hero.js';
 import { Propagation } from './propagation.js';
@@ -322,9 +322,17 @@ function render() {
   setText('#n-after-sub', t('after.sub', span, fmtInt(s.m5), fmtInt(s.m6)));
   setText('#big-mag', s.big ? `M${fmtMag(s.big.mag)}` : '—');
   setText('#big-sub', s.big ? `${fmtTime(s.big.t)} · ${s.big.place}` : '');
-  setText('#freq', fmtRate(s.rateLast6));
+  // Frequency from the last 20 aftershocks (10 for M4+), the same as the rate chart:
+  // one new aftershock doesn't make it jump, and it goes down while none arrive.
+  const stepH = Math.max(1, Math.ceil((now - main.t) / H / 300)); // at most ~300 points
+  const RATE_K = 20;
+  const series = eventRateSeries(seq, { start: main.t.getTime(), end: now, stepH, k: RATE_K, kM4: 10, mmiOf: (e) => estimateMmi(e, ref.lat, ref.lon, ref.siteAdjust) });
+  // Omori law fitted from the first hour on (before that, many small ones went undetected)
+  const fit = omoriFit(seq.map((e) => (e.t - main.t) / H), { tMin: 1, T: (now - main.t) / H });
+  const cur = series[series.length - 1];
+  setText('#freq', cur ? fmtRate(cur.rate) : '—');
   setText('#freq-sub', t('freq.sub', fmtRate(s.rateFirst6)));
-  setText('#m4-rate', fmtRate(s.m4Last12));
+  setText('#m4-rate', cur ? fmtRate(cur.rateM4) : '—');
   setText('#m4-sub', t('m4.sub', fmtRate(s.m4First12)));
   const bigOut = others.length ? others.reduce((a, b) => (b.mag > a.mag ? b : a)) : null;
   setText('#n-out', fmtInt(others.length));
@@ -397,9 +405,7 @@ function render() {
   setText('#pre-note', state.showPre
     ? t('pre.note', SEQUENCE.preDays, fmtInt(d.pre.length), fmtInt(preZone.length), preZone.length ? duration(main.t - preZone[preZone.length - 1].t) : '', true)
     : '');
-  const stepH = Math.max(1, Math.ceil((now - main.t) / H / 300)); // at most ~300 points
-  const series = rateSeries(seq, { start: main.t.getTime(), end: now, windowH: 6, stepH, mmiOf: (e) => estimateMmi(e, ref.lat, ref.lon, ref.siteAdjust) });
-  chart('#chart-rate', drawRate, { series, ref, main, now, windowH: 6 });
+  chart('#chart-rate', drawRate, { series, ref, main, now, k: RATE_K, omori: fit && { ...fit, tMin: 1 } });
   chart('#chart-windows', drawWindows, opts);
   chart('#chart-cumulative', drawCumulative, opts);
   chart('#chart-bands', drawBands, opts);

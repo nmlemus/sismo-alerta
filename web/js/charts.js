@@ -284,11 +284,12 @@ export function drawCumulative(el, { seq, main, now }) {
 
 /**
  * Frequency over time and what it is made of, as three panels on one time axis
- * (never two y-scales on one plot): earthquakes per hour (log scale, all and M4+),
- * mean magnitude, and mean estimated intensity at the reference point. Each point
- * covers the previous `windowH` hours.
+ * (never two y-scales on one plot): earthquakes per hour (log scale, all and M4+, with
+ * the Omori-law curve fitted to them dashed), mean magnitude, and mean estimated
+ * intensity at the reference point. Each point is worked out from the last k
+ * earthquakes (see eventRateSeries), not from a fixed window.
  */
-export function drawRate(el, { series, ref, main, now, windowH }) {
+export function drawRate(el, { series, ref, main, now, k, omori }) {
   const panels = [{ key: 'rate', h: 150 }, { key: 'mag', h: 90 }, { key: 'mmi', h: 90 }];
   const titleH = 22, gap = 16, axisH = 30;
   const total = panels.reduce((a, p) => a + titleH + p.h + gap, 0) - gap + axisH;
@@ -316,6 +317,12 @@ export function drawRate(el, { series, ref, main, now, windowH }) {
     { cls: 's1', get: (d) => d.rate, label: ends[0] },
     { cls: 's2', get: (d) => d.rateM4, label: ends[1] },
   ];
+  const hoursOf = (d) => (d.t - main.t) / 3600e3;
+  if (omori) {
+    // what the Omori law fitted to these aftershocks expects: the usual way they die down
+    const exp = series.filter((d) => hoursOf(d) >= omori.tMin);
+    svg.append('path').attr('class', 'model').attr('d', d3.line(X, (d) => y1(omori.rate(hoursOf(d))))(exp));
+  }
   for (const l of lines1) {
     svg.append('path').attr('class', `line ${l.cls}`)
       .attr('d', d3.line(X, (d) => y1(l.get(d))).defined((d) => l.get(d) > 0)(series));
@@ -370,10 +377,13 @@ export function drawRate(el, { series, ref, main, now, windowH }) {
       k.dot.attr('cx', cx).attr('cy', cy ?? 0).attr('fill', token(k.c)).attr('opacity', cy == null ? 0 : 1);
     }
     const sc = el.clientWidth / W;
+    const span = (d.t - d.from) / 3600e3;
+    const exp = omori && hoursOf(d) >= omori.tMin ? omori.rate(hoursOf(d)) : null;
     tip.show([
       fmtTime(d.t),
-      t('rate.tipN', fmtInt(d.n), Math.round((d.t - d.from) / 3600e3) || windowH),
+      t('rate.tipN', fmtInt(d.n), span < 48 ? t('span.hours', Math.max(1, Math.round(span))) : t('span.days', (span / 24).toFixed(1))),
       [token('--series-1'), t('rate.tipAll', fmtRate(d.rate))],
+      ...(exp == null ? [] : [t('rate.tipOmori', fmtRate(exp))]),
       [token('--series-2'), t('rate.tipM4', fmtRate(d.rateM4))],
       t('rate.tipMag', d.meanMag == null ? '—' : d.meanMag.toFixed(1)),
       t('rate.tipMmi', localName(ref), d.meanMmi == null ? '—' : `${describeMmi(d.meanMmi)}, ${d.meanMmi.toFixed(1)}`),

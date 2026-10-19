@@ -182,13 +182,13 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'mobile
   await page.click('[data-theme-btn="dark"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['hero', 'tiles', 'map-card', 'depth-card', 'hours-card', 'seq-head']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
+    for (const id of ['hero', 'tiles', 'map-card', 'depth-card', 'hours-card', 'seq-head', 'rate-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-dark-${id}.png`) });
   }
   check(await page.evaluate(() => document.documentElement.dataset.theme === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(13, 13, 13)'), `${vp.name}: dark theme on demand`);
   await page.click('[data-theme-btn="light"]');
   await page.waitForTimeout(200);
   if (OUT) {
-    for (const id of ['hero', 'tiles', 'map-card', 'hours-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
+    for (const id of ['hero', 'tiles', 'map-card', 'hours-card', 'rate-card']) await page.locator(`#${id}`).screenshot({ path: join(OUT, `${vp.name}-light-${id}.png`) });
     await page.screenshot({ path: join(OUT, `${vp.name}-light-full.png`), fullPage: true });
   }
   check(await page.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgb(249, 249, 247)'), `${vp.name}: light theme on demand`);
