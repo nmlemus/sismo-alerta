@@ -258,3 +258,12 @@ test('earthquakes by hour of the day, in Panama time', async () => {
   assert.equal(hb.n, 4);
   assert.equal(hb.m4, 2);
 });
+
+test('the page and the Telegram monitor use the same Panama area', async () => {
+  const { SEQUENCE } = await import('../js/config.js');
+  const py = readFileSync(new URL('../../backend/app/monitor.py', import.meta.url), 'utf8');
+  const tuple = (name) => /^AREA(_CUT)? = \(([^)]*)\)/m.exec(py.split('\n').find((l) => l.startsWith(`${name} =`)))[2].split(',').map(Number);
+  const box = (b) => [b.minLat, b.maxLat, b.minLon, b.maxLon];
+  assert.deepEqual(box(SEQUENCE.region), tuple('AREA'));
+  assert.deepEqual(box(SEQUENCE.regionCut), tuple('AREA_CUT'));
+});

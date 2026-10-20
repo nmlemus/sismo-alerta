@@ -850,3 +850,24 @@ def test_which_version_replaces_which():
     lst_rev = IgcQuake(t, 7.5, -80.4, 10.0, 4.3, True, "p", lst.url)
     assert replaces(x_rev, lst) and not replaces(x_pre, lst) and not replaces(x_pre, x_rev)
     assert replaces(lst_rev, x_rev) and not replaces(lst, x_rev)
+
+
+def test_far_offshore_quake_in_the_panama_area_is_announced():
+    """IGC's M5.8 of Oct 20, 2026, 190 km SW of Coiba: about 490 km from Panama City,
+    but in the sea south of Panama, so it goes out. Inland Costa Rica does not."""
+    from app.igc import parse_notice
+    from app.monitor import Known, in_area
+    text = ("El Instituto de Geociencias de la Universidad de Panamá,\nReporta el siguiente evento:\n"
+            "Estado: PRELIMINAR\nFecha: 2026-10-20\nHora: 12:05:44PM hora local\nMagnitud: 5.8\n"
+            "Profundidad: 10km\nLocalizado en Al sur de Panamá a 190km al suroeste de Coiba")
+    q = parse_notice(text)
+    assert (round(q.lat, 1), round(q.lon, 1)) == (6.2, -83.0)
+    now = q.time + timedelta(minutes=3)
+    assert to_notify([Known(q.id, q)], min_mag=3.5, max_age_min=30, now=now)
+    assert in_area(5.8, -83.6)  # further west, still at sea south of Costa Rica and Panama
+    assert in_area(4.6, -82.5)  # Panama Fracture Zone, far south
+    assert not in_area(9.63, -83.84)  # Turrialba, inland Costa Rica
+    assert not in_area(4.0, -80.0)  # off Ecuador and Colombia, too far south
+    q_cr = q.__class__(q.time, 9.63, -83.84, 10.0, 4.5, False, "Costa Rica", q.url)
+    assert to_notify([Known(q_cr.id, q_cr)], min_mag=3.5, max_age_min=30, now=now) == []
+    assert monitor_main.skip_reason(q_cr, 30, now) == "está fuera del área de Panamá y alrededores"

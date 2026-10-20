@@ -53,7 +53,7 @@ const PERIODS = ['pre', 'todo', 'hoy', '24h', '6h'];
 
 /** The area of the earthquakes shown (map, table, charts of each quake). The sequence's
  * own figures always use SEQUENCE.zone. */
-const shownBox = () => (state.scope === 'replicas' ? SEQUENCE.zone : SEQUENCE.region);
+const shownBox = () => (state.scope === 'replicas' ? SEQUENCE.zone : SEQUENCE.region); // for the depth section's town marks
 const MAGS = [0, 3, 4, 5];
 
 /** Start of the period filter in ms; for the windows, also the start of the time axis. */
@@ -68,6 +68,8 @@ function periodStart(main, now) {
 }
 
 const inBox = (e, b) => e.lat >= b.minLat && e.lat <= b.maxLat && e.lon >= b.minLon && e.lon <= b.maxLon;
+/** Panama and its surroundings (SEQUENCE.region without SEQUENCE.regionCut). */
+const inRegion = (e) => inBox(e, SEQUENCE.region) && !(SEQUENCE.regionCut && inBox(e, SEQUENCE.regionCut));
 
 /** Adds or updates an event. Returns whether it just became confirmed (new to the counts). */
 function upsert(ev) {
@@ -83,7 +85,7 @@ function upsert(ev) {
 
 /** Toast + pulse for an event that just entered the counts, if it is recent. */
 function announce(ev) {
-  if (!state.loaded || Date.now() - ev.t > 30 * 60e3 || !inBox(ev, SEQUENCE.region)) return;
+  if (!state.loaded || Date.now() - ev.t > 30 * 60e3 || !inRegion(ev)) return;
   // already announced when it came straight from IGC, minutes before EMSC had it
   if (ev.source !== 'igc' && [...state.igc.values()].some((q) => sameQuake(q, ev))) return;
   toast(ev);
@@ -113,7 +115,7 @@ function derive() {
   for (const e of emsc) if (e.confirmed !== true && igcAll.some((q) => sameQuake(q, e))) e.confirmed = true;
   // IGC's own events, until EMSC publishes the same quake (then EMSC's, with all its solutions).
   const igc = igcOnly([...state.igc.values()].filter((e) => !state.excluded.has(e.id)), emsc);
-  const loaded = [...emsc, ...igc].filter((e) => e.t >= LOAD_START && inBox(e, SEQUENCE.region));
+  const loaded = [...emsc, ...igc].filter((e) => e.t >= LOAD_START && inRegion(e));
   // Only confirmed events are shown as earthquakes and counted; the rest are listed apart.
   const all = loaded.filter((e) => e.confirmed === true);
   const unconfirmed = loaded.filter((e) => e.confirmed !== true).sort((a, b) => b.t - a.t);
@@ -683,7 +685,7 @@ function startLive() {
     onRemove: (id) => { if (state.events.delete(id)) scheduleRender(); },
     onEvent: (ev) => {
       if (state.excluded.has(ev.id)) return;
-      if (ev.t < LOAD_START || !inBox(ev, SEQUENCE.region) || ev.mag < SEQUENCE.minMag) return;
+      if (ev.t < LOAD_START || !inRegion(ev) || ev.mag < SEQUENCE.minMag) return;
       if (upsert(ev)) announce(ev);
       if (state.events.get(ev.id)?.confirmed == null) resolve(ev.id);
       state.lastSync = new Date();

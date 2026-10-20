@@ -24,7 +24,7 @@ NOTIFY_MIN_MAG="${NOTIFY_MIN_MAG:-3.5}"   # Telegram: from M3.5...
 NOTIFY_MIN_MMI="${NOTIFY_MIN_MMI:-99}"    # ...or this intensity in some town (5 = V; 99 = off)
 LOUD_MIN_MAG="${LOUD_MIN_MAG:-4.0}"       # with sound from M4.0...
 LOUD_MIN_MMI="${LOUD_MIN_MMI:-99}"        # ...or this intensity in some town (99 = off)
-NOTIFY_MAX_KM="${NOTIFY_MAX_KM:-400}"
+NOTIFY_MAX_KM="${NOTIFY_MAX_KM:-0}"         # 0: no distance limit (only the Panama area)
 SA="${SERVICE}@${PROJECT_ID}.iam.gserviceaccount.com"
 SCHED_SA="sismo-scheduler@${PROJECT_ID}.iam.gserviceaccount.com"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

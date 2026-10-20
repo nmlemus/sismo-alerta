@@ -8,9 +8,13 @@ export const SEQUENCE = {
   // only events inside this box.
   zone: { minLat: 6.5, maxLat: 8.2, minLon: -82.3, maxLon: -79.5 },
   // Panama and its surroundings: everything the page loads and shows (map, latest
-  // quake, table, time of day...). Includes the Caribbean up to 11.5° N and the border
-  // strips with Costa Rica and Colombia, which are felt in Panama too.
-  region: { minLat: 5.0, maxLat: 11.5, minLon: -83.3, maxLon: -77.0 },
+  // quake, table, time of day...), and the same area the Telegram monitor uses
+  // (backend/app/monitor.py, AREA and AREA_CUT). It reaches the Caribbean up to
+  // 11.5° N, the sea south of Panama down to 4.5° N (the Panama Fracture Zone) and the
+  // border strips with Costa Rica and Colombia, which are felt in Panama too...
+  region: { minLat: 4.5, maxLat: 11.5, minLon: -84.0, maxLon: -77.0 },
+  // ...without inland Costa Rica.
+  regionCut: { minLat: 8.3, maxLat: 11.5, minLon: -84.0, maxLon: -83.3 },
   minMag: 2.5,
   // Days before the mainshock that can be shown (off by default; the views start at the mainshock).
   preDays: 7,

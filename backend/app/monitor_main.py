@@ -18,7 +18,9 @@ Environment:
   LOUD_MIN_MMI         99    ...or this intensity in some town (99: off); the rest arrive silently.
   REVISION_REPLIES     off   on: besides editing the message, reply to it with what IGC
                              changed. Off by default: an edit notifies nobody, a reply does.
-  NOTIFY_MAX_KM        400   Only quakes this close to Panama City.
+  NOTIFY_MAX_KM        0     Only quakes this close to Panama City (0: no limit). Either way only
+                             quakes in Panama and its surroundings go out (monitor.in_area,
+                             the same area the web page shows).
   NOTIFY_MAX_AGE_MIN   30    Never announce anything older (e.g. after downtime).
   DASHBOARD_URL        Link in every message.
   IGC_URL              https://sismosgeociencias.up.ac.pa/
@@ -57,7 +59,7 @@ from aiohttp import web
 from .feeds import origin_from_emsc_feature
 from .intensity import ROMAN, describe
 from .igc import IGC_URL, IgcQuake, NoticeError, parse_list, parse_notice, quake_from_emsc, same_quake, source
-from .monitor import (Known, MergeResult, _clock, _esc, _place, apply_peaks, buttons, effective, known_signature, message_for,
+from .monitor import (in_area, Known, MergeResult, _clock, _esc, _place, apply_peaks, buttons, effective, known_signature, message_for,
                       significant, strongest_town, cluster_note, edited_footer, feed, merge, merge_backup, message,
                       nearby_earlier, revision_note, signature, to_notify)
 from .telegram import LogOnly, Telegram
@@ -74,7 +76,7 @@ CFG = {
     "loud_mag": float(ENV("LOUD_MIN_MAG", "4.0")),
     "loud_mmi": float(ENV("LOUD_MIN_MMI", "99")),
     "revision_replies": ENV("REVISION_REPLIES", "off").lower() in ("on", "1", "true", "yes"),
-    "max_km": float(ENV("NOTIFY_MAX_KM", "400")),
+    "max_km": float(ENV("NOTIFY_MAX_KM", "0")),
     "max_age": float(ENV("NOTIFY_MAX_AGE_MIN", "30")),
     "dashboard": ENV("DASHBOARD_URL", "https://sismo-alerta-235ca.web.app"),
     "emsc_url": ENV("EMSC_FDSN_URL", "https://www.seismicportal.eu/fdsnws/event/1/query"),
@@ -615,6 +617,8 @@ def skip_reason(q: IgcQuake, max_age: float, now: datetime) -> str:
                            f"{ROMAN[round(CFG['min_mmi'])]} en ningún pueblo (lo más fuerte: {describe(mmi)} en {town})")
     if now - q.time > timedelta(minutes=max_age):
         reasons.append(f"es de hace más de {max_age:.0f} min")
+    if not in_area(q.lat, q.lon):
+        reasons.append("está fuera del área de Panamá y alrededores")
     if not reasons:
         reasons.append(f"está a más de {CFG['max_km']:.0f} km de Ciudad de Panamá")
     return "; ".join(reasons)

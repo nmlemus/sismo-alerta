@@ -18,6 +18,18 @@ from .intensity import describe, epicentral_km, estimate_mmi
 
 PANAMA_CITY = (8.983, -79.52, 0.6)  # lat, lon, site adjustment (matches the web page)
 
+# Panama and its surroundings: the same area the web page shows (SEQUENCE.region and
+# regionCut in web/js/config.js). It reaches down to 4.5° N, the sea south of Panama
+# where the Panama Fracture Zone is, and keeps the border strips with Costa Rica and
+# Colombia, without inland Costa Rica.
+AREA = (4.5, 11.5, -84.0, -77.0)  # min lat, max lat, min lon, max lon
+AREA_CUT = (8.3, 11.5, -84.0, -83.3)  # inland Costa Rica, left out
+
+
+def in_area(lat: float, lon: float) -> bool:
+    inside = lambda b: b[0] <= lat <= b[1] and b[2] <= lon <= b[3]  # noqa: E731
+    return inside(AREA) and not inside(AREA_CUT)
+
 
 @dataclass
 class Known:
@@ -188,16 +200,18 @@ def significant(q: IgcQuake, min_mag: float, min_mmi: float) -> bool:
     return q.mag >= min_mag or strongest_town(q)[1] >= min_mmi - 0.5
 
 
-def to_notify(new: list[Known], *, min_mag: float, max_age_min: float, max_km: float,
+def to_notify(new: list[Known], *, min_mag: float, max_age_min: float, max_km: float = 0,
               min_mmi: float = 99, now: datetime | None = None) -> list[Known]:
-    """Recent significant quakes (min_mag, or min_mmi in some town) within max_km of
-    Panama City, oldest first. The rest only go to the web page."""
+    """Recent significant quakes (min_mag, or min_mmi in some town) in Panama and its
+    surroundings (in_area, the area the web page shows), oldest first; with max_km > 0,
+    also only that close to Panama City. The rest only go to the web page."""
     now = now or datetime.now(timezone.utc)
     lat, lon, _ = PANAMA_CITY
     keep = [k for k in new
             if significant(effective(k), min_mag, min_mmi)
             and now - k.quake.time <= timedelta(minutes=max_age_min)
-            and epicentral_km(lat, lon, k.quake.lat, k.quake.lon) <= max_km]
+            and in_area(k.quake.lat, k.quake.lon)
+            and (max_km <= 0 or epicentral_km(lat, lon, k.quake.lat, k.quake.lon) <= max_km)]
     return sorted(keep, key=lambda k: k.quake.time)
 
 
