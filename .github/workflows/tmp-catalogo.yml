@@ -1,0 +1,22 @@
+name: tmp-catalogo
+# Temporary: downloads the USGS catalog for the Central America seismicity analysis
+# and commits it to this branch. Only runs on branch tmp/catalogo.
+on:
+  push:
+    branches: [tmp/catalogo]
+    paths: ["analysis/fetch_catalog.py", ".github/workflows/tmp-catalogo.yml"]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 analysis/fetch_catalog.py
+      - run: |
+          git config user.name "catalogo-usgs"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add analysis/data
+          git commit -m "Datos del catálogo USGS para el análisis de sismicidad"
+          git push
