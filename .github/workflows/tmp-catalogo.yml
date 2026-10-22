@@ -4,7 +4,7 @@ name: tmp-catalogo
 on:
   push:
     branches: [tmp/catalogo]
-    paths: ["analysis/fetch_catalog.py", ".github/workflows/tmp-catalogo.yml"]
+    paths: ["analysis/fetch_small.py"]
 permissions:
   contents: write
 jobs:
@@ -13,11 +13,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - run: python3 analysis/fetch_catalog.py
+      - run: python3 analysis/fetch_small.py
       - if: always()
         run: |
           git config user.name "catalogo-usgs"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add analysis/data
-          git commit -m "Datos del catálogo USGS para el análisis de sismicidad"
+          git commit -m "Réplicas pequeñas (EMSC e IGC) para el análisis de migración"
           git push
