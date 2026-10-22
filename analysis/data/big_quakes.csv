@@ -1,0 +1,161 @@
+time,latitude,longitude,depth,mag,magType,place,id,radius_km,n4_1d,n4.5_1d,complete_1d,n4_12d8,n4.5_12d8,complete_12d8,n4_30d,n4.5_30d,complete_30d
+1995-04-07T22:06:56.890Z,-15.199,-173.529,21.2,7.4,mw,"88 km NNE of Hihifo, Tonga",usp0006vb3,100,15,11,True,23,16,True,29,18,True
+1995-05-16T20:12:44.220Z,-23.008,169.9,20.2,7.7,mw,"249 km E of Vao, New Caledonia",usp0006xg1,127,63,48,True,103,76,True,125,83,True
+1995-07-30T05:11:23.630Z,-23.34,-70.294,45.6,8,mw,"36 km NNE of Antofagasta, Chile",usp000714t,191,74,52,True,135,84,True,141,87,True
+1995-08-16T10:27:28.630Z,-5.799,154.178,30.1,7.7,mw,"155 km WNW of Panguna, Papua New Guinea",usp00071w4,127,52,30,True,131,66,True,155,72,True
+1995-09-14T14:04:31.430Z,16.779,-98.597,23,7.4,mwb,"5 km N of Azoyú, Mexico",usp00073c5,100,4,3,True,11,7,True,15,8,True
+1995-10-09T15:35:53.910Z,19.055,-104.205,33,8,mw,"1995 Colima-Jalisco, Mexico Earthquake",usp00074vc,191,9,5,True,19,9,True,25,14,True
+1995-12-03T18:01:08.990Z,44.663,149.3,33,7.9,mw,"128 km ESE of Kuril’sk, Russia",usp000782n,166,125,90,True,226,152,True,248,159,True
+1996-01-01T08:05:10.830Z,0.729,119.931,24,7.9,mw,"181 km N of Palu, Indonesia",usp00079zv,166,6,5,True,26,17,True,31,19,True
+1996-02-17T05:59:30.550Z,-0.891,136.952,33,8.09,mww,"1996 Biak, Indonesia Earthquake",official19960217055930550_33,215,167,84,True,302,153,True,327,170,True
+1996-02-21T12:51:01.300Z,-9.593,-79.587,10,7.5,mw,"123 km WSW of Puerto Santa, Peru",usp0007dmb,100,9,6,True,18,11,True,21,13,True
+1996-06-10T04:03:35.480Z,51.564,-177.632,33,7.9,mwc,"77 km WSW of Adak, Alaska",usp0007jcu,166,107,56,True,189,91,True,204,96,True
+1996-11-12T16:59:44.030Z,-14.993,-75.675,33,7.7,mwc,"60 km SW of Changuillo, Peru",usp0007swp,127,37,25,True,57,37,True,64,40,True
+1997-04-21T12:02:26.430Z,-12.584,166.676,33,7.7,mwc,"171 km NNW of Sola, Vanuatu",usp00080wt,127,58,42,True,120,84,True,126,88,True
+1997-11-08T10:02:52.610Z,35.069,87.325,33,7.5,mwc,western Xizang,usp0008a97,100,6,5,True,16,11,True,19,14,True
+1997-12-05T11:26:54.690Z,54.841,162.035,33,7.8,mwc,"156 km S of Ust’-Kamchatsk Staryy, Russia",usp0008btk,145,205,138,True,373,219,True,407,237,True
+1998-03-25T03:12:25.070Z,-62.877,149.527,10,8.1,mwc,1998 Balleny Islands Earthquake,usp0008hzd,218,14,9,True,32,17,True,37,18,True
+1998-05-03T23:30:21.910Z,22.306,125.308,33,7.5,mwb,"254 km SSE of Ishigaki, Japan",usp0008mdk,100,5,3,True,14,7,True,21,10,True
+1998-11-29T14:10:31.960Z,-2.071,124.891,33,7.7,mwc,"264 km ESE of Luwuk, Indonesia",usp0008yx2,127,17,10,True,27,15,True,32,17,True
+1999-08-17T00:01:39.130Z,40.748,29.864,17,7.6,mwc,"4 km ESE of Derince, Turkey",usp0009d4z,111,40,13,True,56,19,True,64,23,True
+1999-09-20T17:47:18.490Z,23.772,120.982,33,7.7,mwc,"21 km S of Puli, Taiwan",usp0009eq0,127,61,36,True,117,72,True,133,82,True
+1999-09-30T16:31:15.690Z,16.059,-96.931,60.6,7.5,mwc,"15 km W of San Baltazar Loxicha, Mexico",usp0009f7v,100,6,2,True,12,2,True,14,2,True
+1999-11-26T13:21:15.570Z,-16.423,168.214,33,7.5,mwc,"92 km ESE of Lakatoro, Vanuatu",usp0009j4n,100,18,15,True,19,16,True,22,17,True
+2000-05-04T04:21:16.210Z,-1.105,123.573,26,7.6,mwc,"89 km E of Luwuk, Indonesia",usp0009sbh,111,27,19,True,54,36,True,66,45,True
+2000-06-04T16:28:26.170Z,-4.721,102.087,33,7.9,mwc,"103 km S of Bengkulu, Indonesia",usp0009txv,166,75,64,True,207,166,True,242,190,True
+2000-06-18T14:44:13.310Z,-13.802,97.453,10,7.9,mwc,South Indian Ocean,usp0009ut0,166,8,4,True,16,10,True,16,10,True
+2000-11-16T04:54:56.740Z,-3.98,152.169,33,8,mwc,2000 New Ireland Earthquake,usp000a3qq,191,102,89,True,403,263,True,447,295,True
+2000-11-16T07:42:16.930Z,-5.233,153.102,30,7.8,mwc,"135 km SE of Kokopo, Papua New Guinea",usp000a3sp,145,121,106,True,509,324,True,567,366,True
+2000-11-17T21:01:56.490Z,-5.496,151.781,33,7.8,mwc,"138 km SSW of Kokopo, Papua New Guinea",usp000a45f,145,59,37,True,186,96,True,201,105,True
+2001-01-01T06:57:04.170Z,6.898,126.579,33,7.5,mwc,"21 km SE of Lukatan, Philippines",usp000a70h,100,11,10,True,24,21,True,33,27,True
+2001-01-13T17:33:32.380Z,13.049,-88.66,60,7.7,mwc,"28 km SSW of Puerto El Triunfo, El Salvador",usp000a7m5,127,15,4,True,54,23,True,72,29,True
+2001-01-26T03:16:40.500Z,23.419,70.232,16,7.7,mwc,"17 km NW of Bhach?u, India",usp000a8ds,127,18,14,True,53,30,True,70,42,True
+2001-02-13T19:28:30.260Z,-4.68,102.562,36,7.4,mwc,"102 km SSE of Bengkulu, Indonesia",usp000a9kc,100,7,6,True,18,16,True,19,17,True
+2001-06-23T20:33:14.130Z,-16.265,-73.641,33,8.4,mww,"6 km SSW of Atico, Peru",official20010623203314130_33,328,119,89,True,224,151,True,317,191,True
+2001-07-07T09:38:43.520Z,-17.543,-72.077,33,7.6,mwc,"51 km SW of Punta de Bombón, Peru",usp000aj40,111,45,24,True,70,31,True,81,34,True
+2001-10-19T03:28:44.460Z,-4.102,123.907,33,7.5,mwc,"155 km E of Kendari, Indonesia",usp000ar78,100,5,5,True,7,7,True,8,8,True
+2001-11-14T09:26:10.010Z,35.946,90.541,10,7.8,mwc,"Southern Qinghai, China",usp000asvm,145,6,4,True,8,5,True,10,6,True
+2002-03-05T21:16:09.130Z,6.033,124.249,31,7.5,mwc,"Mindanao, Philippines",usp000azqw,100,30,19,True,72,32,True,76,34,True
+2002-09-08T18:44:23.710Z,-3.302,142.945,13,7.6,mwc,"68 km ESE of Aitape, Papua New Guinea",usp000bbpf,111,38,37,True,55,49,True,59,52,True
+2002-10-10T10:50:20.570Z,-1.757,134.297,10,7.6,mwc,"102 km SSE of Manokwari, Indonesia",usp000be54,111,37,36,True,69,56,True,73,58,True
+2002-11-02T01:26:10.700Z,2.824,96.085,30,7.4,mwb,"50 km NW of Sinabang, Indonesia",usp000bfuz,100,13,12,True,21,19,True,25,22,True
+2002-11-03T22:12:41.518Z,63.5141,-147.4529,4.2,7.9,mw,"2002 Denali Fault, Alaska Earthquake",ak002e435qpj,166,90,33,True,118,40,True,123,41,True
+2003-01-22T02:06:34.610Z,18.77,-104.104,24,7.6,mwb,"16 km SSW of Cuyutlán, Mexico",usp000bnyr,111,12,4,True,19,4,True,25,5,True
+2003-07-15T20:27:50.530Z,-2.598,68.382,10,7.6,mwc,Carlsberg Ridge,usp000c2ka,111,8,8,True,12,11,True,12,11,True
+2003-08-04T04:37:20.130Z,-60.532,-43.411,10,7.6,mwc,Scotia Sea,usp000c41f,111,43,27,True,56,34,True,57,35,True
+2003-09-25T19:50:06.360Z,41.815,143.91,27,8.16,mww,2003 Tokachi-Oki Earthquake,official20030925195006360_27,237,31,24,True,121,93,True,154,113,True
+2003-09-25T21:08:00.030Z,41.774,143.593,33,7.4,mwc,"119 km ESE of Shizunai-furukawach?, Japan",usp000c8mb,100,20,13,True,87,65,True,106,78,True
+2003-11-17T06:43:06.800Z,51.146,178.65,33,7.8,mwc,"Rat Islands, Aleutian Islands, Alaska",usp000cd1n,145,112,53,True,178,80,True,196,87,True
+2004-09-05T14:57:18.610Z,33.184,137.071,10,7.4,mwb,"118 km ESE of Shing?, Japan",usp000d3mb,100,52,18,True,86,29,True,90,30,True
+2004-11-11T21:26:41.150Z,-8.152,124.868,10,7.5,mwc,"63 km NW of Maubara, Timor Leste",usp000d85g,100,71,51,True,123,79,True,135,86,True
+2004-12-23T14:59:04.410Z,-49.312,161.345,10,8.1,mwc,2004 Tasman Sea Earthquake,usp000db93,218,18,15,True,25,20,True,28,22,True
+2004-12-26T00:58:53.450Z,3.295,95.982,30,9.1,mw,2004 Sumatra - Andaman Islands Earthquake,official20041226005853450_30,849,255,204,True,671,534,True,1017,711,True
+2005-03-28T16:09:36.530Z,2.085,97.108,30,8.6,mww,"78 km WSW of Singkil, Indonesia",official20050328160936530_30,431,249,163,True,742,425,True,953,535,True
+2005-10-08T03:50:40.800Z,34.539,73.588,26,7.6,mwc,"21 km NNE of Muzaffar?b?d, Pakistan",usp000e12e,111,163,113,True,257,163,True,286,175,True
+2006-01-02T06:10:49.760Z,-60.957,-21.606,13,7.4,mwc,east of the South Sandwich Islands,usp000e7dd,100,1,1,True,1,1,True,1,1,True
+2006-04-20T23:25:02.150Z,60.949,167.089,22,7.6,mwc,"80 km NE of Tilichiki, Russia",usp000ef1h,111,131,58,True,185,80,True,204,89,True
+2006-05-03T15:26:40.290Z,-20.187,-174.123,55,8,mwc,2006 Tonga Earthquake,usp000eg5g,191,51,40,True,130,102,True,177,140,True
+2006-07-17T08:19:26.680Z,-9.284,107.419,20,7.7,mwc,"226 km SSW of Singaparna, Indonesia",usp000ensm,127,117,94,True,258,191,True,286,209,True
+2006-11-15T11:14:13.570Z,46.592,153.266,10,8.3,mwc,2006 Kuril Islands Earthquake,usp000exfn,286,297,205,True,707,435,True,842,491,True
+2007-01-13T04:23:21.160Z,46.243,154.524,10,8.1,mwc,2007 Kuril Islands Earthquake,usp000f2ab,218,120,70,True,216,117,True,260,142,True
+2007-01-21T11:27:45.060Z,1.065,126.282,22,7.5,mwc,"126 km WNW of Ternate, Indonesia",usp000f34b,100,95,73,True,190,126,True,208,136,True
+2007-04-01T20:39:58.710Z,-8.466,157.043,24,8.1,mwc,2007 Solomon Islands Earthquake,usp000f83m,218,121,98,True,269,202,True,295,221,True
+2007-08-15T23:40:57.890Z,-13.386,-76.603,39,8,mwc,"41 km SW of San Vicente de Cañete, Peru",usp000fjta,191,61,40,True,125,80,True,139,86,True
+2007-09-12T11:10:26.830Z,-4.438,101.367,34,8.4,mww,"122 km SW of Bengkulu, Indonesia",official20070912111026830_34,328,90,58,True,221,150,True,264,182,True
+2007-09-12T23:49:03.720Z,-2.625,100.841,35,7.9,mwc,"87 km SW of Sungai Penuh, Indonesia",usp000fn2b,166,48,40,True,145,110,True,178,134,True
+2007-09-30T05:23:34.070Z,-49.271,164.115,10,7.4,mwc,"Auckland Islands, New Zealand region",usp000fpgq,100,13,8,True,27,20,True,29,20,True
+2007-11-14T15:40:50.530Z,-22.247,-69.89,40,7.7,mwc,"36 km ESE of Tocopilla, Chile",usp000fshy,127,22,20,True,67,55,True,73,60,True
+2008-02-20T08:08:30.520Z,2.768,95.964,26,7.4,mwc,"56 km NW of Sinabang, Indonesia",usp000fzau,100,13,10,True,18,12,True,22,15,True
+2008-05-12T06:28:01.570Z,31.002,103.322,19,7.9,mwc,"58 km W of Tianpeng, China",usp000g650,166,180,100,True,353,151,True,400,175,True
+2008-11-16T17:02:32.700Z,1.271,122.091,30,7.4,mww,"135 km NW of Gorontalo, Indonesia",usp000gnur,100,9,4,True,12,5,True,13,6,True
+2009-01-03T19:43:50.650Z,-0.414,132.885,17,7.7,mwc,"140 km WNW of Manokwari, Indonesia",usp000gs2d,127,87,73,True,149,124,True,166,133,True
+2009-01-03T22:33:40.290Z,-0.691,133.305,23,7.4,mwc,"86 km WNW of Manokwari, Indonesia",usp000gs3t,100,51,44,True,104,88,True,117,95,True
+2009-01-15T17:49:39.070Z,46.857,155.154,36,7.4,mwc,east of the Kuril Islands,usp000gsmz,100,15,10,True,23,14,True,24,14,True
+2009-03-19T18:17:40.470Z,-23.043,-174.66,31,7.6,mwc,"191 km S of ‘Ohonua, Tonga",usp000gv5p,111,26,25,True,57,56,True,69,68,True
+2009-07-15T09:22:29.030Z,-45.762,166.562,12,7.8,mwc,"97 km WSW of Te Anau, New Zealand",usp000gz8j,145,47,36,True,93,68,True,113,84,True
+2009-08-10T19:55:38.730Z,14.099,92.902,24,7.5,mwc,"266 km N of Bamboo Flat, India",usp000h05x,100,16,9,True,37,17,True,49,22,True
+2009-09-29T17:48:10.990Z,-15.489,-172.095,18,8.1,mwc,2009 Samoa Earthquake,usp000h1ys,218,127,121,True,240,216,True,275,249,True
+2009-10-07T22:03:14.470Z,-13.006,166.51,45,7.7,mww,"148 km NW of Sola, Vanuatu",usp000h2g9,127,70,61,True,150,125,True,163,136,True
+2009-10-07T22:18:51.240Z,-12.517,166.382,35,7.8,mwc,"196 km NW of Sola, Vanuatu",usp000h2gd,145,88,76,True,185,146,True,206,162,True
+2009-10-07T23:13:48.160Z,-13.093,166.497,31.1,7.4,mwc,"143 km NW of Sola, Vanuatu",usp000h2gr,100,47,40,True,109,90,True,116,95,True
+2010-02-27T06:34:11.530Z,-36.122,-72.898,22.9,8.8,mww,"2010 Maule, Chile Earthquake",official20100227063411530_30,565,408,303,True,1072,695,True,1349,862,True
+2010-02-27T08:01:23.010Z,-37.773,-75.048,35,7.4,mwc,"124 km W of Lebu, Chile",usp000h7sq,100,13,10,True,28,20,True,33,23,True
+2010-04-06T22:15:01.580Z,2.383,97.048,31,7.8,mwc,"75 km E of Sinabang, Indonesia",usp000hat0,145,13,6,True,26,8,True,32,9,True
+2010-06-12T19:26:50.460Z,7.881,91.936,35,7.5,mwc,"Nicobar Islands, India region",usp000hdwb,100,16,11,True,39,28,True,45,31,True
+2010-10-25T14:42:22.460Z,-3.487,100.082,20.1,7.8,mwc,"215 km SW of Sungai Penuh, Indonesia",usp000hnj4,145,41,28,True,95,57,True,125,70,True
+2010-12-21T17:19:40.660Z,26.901,143.698,14,7.4,mwc,"Bonin Islands, Japan region",usp000hr97,100,279,192,True,615,337,True,718,400,True
+2011-03-11T05:46:24.120Z,38.297,142.373,29,9.1,mww,"2011 Great Tohoku Earthquake, Japan",official20110311054624120_30,849,670,527,True,2463,1693,True,3062,2057,True
+2011-03-11T06:15:40.280Z,36.281,141.111,42.6,7.9,mwc,"47 km E of ?arai, Japan",usp000hvpa,166,255,210,True,900,627,True,1085,751,True
+2011-03-11T06:25:50.300Z,38.058,144.59,18.6,7.7,mwc,"272 km ESE of Kamaishi, Japan",usp000hvpg,127,130,98,True,572,370,True,717,446,True
+2011-07-06T19:03:18.260Z,-29.539,-176.34,17,7.6,mww,Kermadec Islands region,usp000j48h,111,50,40,True,175,129,True,205,148,True
+2011-10-21T17:57:16.100Z,-28.993,-176.238,33,7.4,mww,Kermadec Islands region,usp000j9nm,100,7,6,True,22,16,True,26,18,True
+2012-03-20T18:02:47.440Z,16.493,-98.231,20,7.4,mww,"6 km E of Santiago Llano Grande, Mexico",usp000jghj,100,36,15,True,94,28,True,136,42,True
+2012-04-11T08:38:36.720Z,2.327,93.063,20,8.6,mw,2012 Wharton Basin Earthquake,official20120411083836720_20,431,185,135,True,361,236,True,418,263,True
+2012-04-11T10:43:10.850Z,0.802,92.463,25.1,8.2,mwc,2012 Wharton Basin Aftershock,usp000jhjb,250,101,71,True,185,119,True,206,127,True
+2012-08-31T12:47:33.380Z,10.811,126.638,28,7.6,mww,"89 km E of Sulangan, Philippines",usp000jr83,111,95,65,True,227,148,True,259,166,True
+2012-09-05T14:42:07.800Z,10.085,-85.315,35,7.6,mww,"11 km ENE of Hojancha, Costa Rica",usp000jrsw,111,10,4,True,25,13,True,32,14,True
+2012-10-28T03:04:08.820Z,52.788,-132.101,14,7.8,mww,"206 km SW of Prince Rupert, Canada",usp000juhz,145,115,37,True,175,58,True,183,61,True
+2012-11-07T16:35:46.930Z,13.988,-91.895,24,7.4,mww,"33 km S of Champerico, Guatemala",usp000jv5f,100,28,13,True,100,43,True,116,48,True
+2013-01-05T08:58:14.957Z,55.228,-134.8591,8.7,7.5,mw,"110 km SW of Edna Bay, Alaska",ak0138esnzr,100,13,6,True,19,9,True,20,10,True
+2013-02-06T01:12:25.830Z,-10.799,165.114,24,8,mww,2013 Santa Cruz Islands Earthquake,usc000f1s0,191,261,199,True,622,468,True,672,508,True
+2013-09-24T11:29:47.970Z,26.951,65.5009,15,7.7,mww,"113 km NW of Bela, Pakistan",usb000jyiv,127,26,15,True,35,17,True,40,17,True
+2013-11-17T09:04:55.530Z,-60.2738,-46.4011,10,7.7,mww,Scotia Sea,usb000l0gq,127,77,52,True,106,72,True,110,72,True
+2014-04-01T23:46:47.260Z,-19.6097,-70.7691,25,8.2,mww,"93 km NW of Iquique, Chile",usc000nzvd,250,129,65,True,324,151,True,380,174,True
+2014-04-03T02:43:13.110Z,-20.5709,-70.4931,22.4,7.7,mww,"53 km SW of Iquique, Chile",usc000p27i,127,74,43,True,185,84,True,227,100,True
+2014-04-12T20:14:39.300Z,-11.2701,162.1481,22.56,7.6,mww,"93 km SSE of Kirakira, Solomon Islands",usc000phx5,111,117,83,True,232,158,True,247,162,True
+2014-04-13T12:36:19.230Z,-11.4633,162.0511,39,7.4,mww,"112 km S of Kirakira, Solomon Islands",usc000piqj,100,64,50,True,146,102,True,159,106,True
+2014-04-19T13:28:00.810Z,-6.7547,155.0241,43.37,7.5,mww,"70 km SW of Panguna, Papua New Guinea",usb000pr89,100,121,86,True,234,151,True,281,177,True
+2015-03-29T23:48:31.010Z,-4.7294,152.5623,41,7.5,mww,"53 km SE of Kokopo, Papua New Guinea",us10001rvu,100,34,25,True,60,41,True,74,48,True
+2015-04-25T06:11:25.950Z,28.2305,84.7314,8.22,7.8,mww,"67 km NNE of Bharatpur, Nepal",us20002926,145,80,46,True,132,59,True,181,71,True
+2015-05-05T01:44:06.380Z,-5.4624,151.8751,55,7.5,mww,"131 km SSW of Kokopo, Papua New Guinea",us20002bnf,100,47,26,True,125,59,True,142,69,True
+2015-09-16T22:54:32.860Z,-31.5729,-71.6744,22.44,8.3,mww,"48 km W of Illapel, Chile",us20003k7a,286,233,159,True,574,270,True,694,308,True
+2016-03-02T12:49:48.110Z,-4.9521,94.3299,24,7.8,mww,"southwest of Sumatra, Indonesia",us10004u1y,145,10,7,True,17,12,True,17,12,True
+2016-04-16T23:58:36.980Z,0.3819,-79.9218,20.59,7.8,mww,"27 km SSE of Muisne, Ecuador",us20005j32,145,16,12,True,63,33,True,70,35,True
+2016-08-19T07:32:22.710Z,-55.2852,-31.8766,10,7.4,mww,South Georgia Island region,us10006exl,100,103,73,True,181,125,True,215,150,True
+2016-11-13T11:02:56.340Z,-42.7373,173.054,15.11,7.8,mww,"53 km NNE of Amberley, New Zealand",us1000778i,145,115,75,True,202,103,True,213,104,True
+2016-12-08T17:38:46.280Z,-10.6812,161.3273,40,7.8,mww,"69 km WSW of Kirakira, Solomon Islands",us20007z80,145,113,78,True,267,183,True,299,202,True
+2016-12-25T14:22:27.010Z,-43.4064,-73.9413,38,7.6,mww,"41 km SW of Quellón, Chile",us10007mn3,111,13,4,True,22,8,True,,9,True
+2017-07-17T23:34:13.740Z,54.4434,168.857,10,7.7,mww,"Komandorskiye Ostrova, Russia region",us20009x42,127,65,14,True,95,20,True,102,21,True
+2017-09-08T04:49:19.180Z,15.0222,-93.8993,47.39,8.2,mww,"2017 Tehuantepec, Mexico Earthquake",us2000ahv0,250,120,57,True,321,124,True,417,153,True
+2018-01-10T02:51:33.290Z,17.4825,-83.52,19,7.5,mww,"203 km NNE of Barra Patuca, Honduras",us1000c2zy,100,6,3,True,12,3,True,12,3,True
+2018-01-23T09:31:40.890Z,56.0039,-149.1658,14.06,7.9,mww,"261 km SE of Chiniak, Alaska",us2000cmy3,166,75,20,True,157,33,True,193,38,True
+2018-02-25T17:44:44.140Z,-6.0699,142.7536,25.21,7.5,mww,"32 km SW of Tari, Papua New Guinea",us2000d7q6,100,86,70,True,222,177,True,261,198,True
+2018-09-28T10:02:45.250Z,-0.2559,119.8462,20,7.5,mww,"72 km N of Palu, Indonesia",us1000h3p4,100,37,18,True,50,24,True,51,25,True
+2018-12-05T04:18:08.420Z,-21.9496,169.4266,10,7.5,mww,"166 km ESE of Tadine, New Caledonia",us1000i2gt,100,95,70,True,163,121,True,175,128,True
+2019-05-14T12:58:25.939Z,-4.051,152.5967,10,7.6,mww,"48 km NE of Kokopo, Papua New Guinea",us70003kyy,111,31,18,True,41,28,True,43,30,True
+2020-01-28T19:10:24.918Z,19.4193,-78.756,14.86,7.7,mww,"123 km NNW of Lucea, Jamaica",us60007idc,127,3,2,True,4,2,True,4,2,True
+2020-03-25T02:49:21.160Z,48.9638,157.6955,57.8,7.5,mww,"221 km SSE of Severo-Kuril’sk, Russia",us70008fi4,100,16,5,True,28,6,True,32,7,True
+2020-06-18T12:49:53.844Z,-33.2927,-177.8571,10,7.4,mww,south of the Kermadec Islands,us6000ae4n,100,40,22,True,106,58,True,125,69,True
+2020-06-23T15:29:04.350Z,15.8861,-96.0077,20,7.4,mww,"9 km SE of Santa María Xadani, Mexico",us6000ah9t,100,12,5,True,18,8,True,19,8,True
+2020-07-22T06:12:44.810Z,55.0715,-158.596,28,7.8,mww,"2020 Perryville, Alaska Earthquake",us7000asvb,145,26,10,True,50,24,True,61,29,True
+2020-10-19T20:54:38.950Z,54.602,-159.6258,28.37,7.6,mww,"2020 Sand Point, Alaska Earthquake",us6000c9hg,111,81,33,True,126,47,True,136,48,True
+2021-02-10T13:19:55.530Z,-23.0511,171.6566,10,7.7,mww,southeast of the Loyalty Islands,us6000dg77,127,163,133,True,315,251,True,344,269,True
+2021-03-04T17:41:23.370Z,-29.6768,-177.8398,43,7.4,mww,"Kermadec Islands, New Zealand",us7000dfk3,100,62,53,True,160,136,True,182,153,True
+2021-03-04T19:28:33.178Z,-29.7228,-177.2794,28.93,8.1,mww,"2021 Kermadec Islands, New Zealand Earthquake",us7000dflf,218,190,171,True,536,448,True,604,493,True
+2021-07-29T06:15:49.188Z,55.3635,-157.8876,35,8.2,mww,"2021 Chignik, Alaska Earthquake",ak0219neiszm,250,53,25,True,65,27,True,73,29,True
+2021-08-12T18:32:52.464Z,-57.5674,-25.0316,47.23,7.5,mww,South Sandwich Islands region,us6000f4ly,100,93,77,True,254,185,True,315,226,True
+2021-08-12T18:35:17.231Z,-58.3753,-25.2637,22.79,8.1,mww,2021 South Sandwich Islands Earthquake,us6000f53e,218,243,209,True,699,500,True,895,637,True
+2022-09-19T18:05:08.217Z,18.4552,-102.9561,26.943,7.6,mww,"35 km SSW of Aguililla, Mexico",us7000i9bw,111,6,4,True,13,7,True,18,8,True
+2023-02-06T01:17:34.342Z,37.2256,37.0143,10,7.8,mww,"Pazarcik earthquake, Kahramanmaras earthquake sequence",us6000jllz,145,188,97,True,321,123,True,358,128,True
+2023-02-06T10:24:48.811Z,38.0106,37.1962,7.432,7.5,mww,"Elbistan earthquake, Kahramanmaras earthquake sequence",us6000jlqa,100,127,61,True,225,83,True,255,88,True
+2023-05-19T02:57:03.172Z,-23.2063,170.7423,18.053,7.7,mww,southeast of the Loyalty Islands,us6000kd0n,127,136,96,True,248,157,True,271,173,True
+2023-12-02T14:37:04.454Z,8.5266,126.4161,40,7.6,mww,"19 km E of Gamut, Philippines",us7000lff4,111,306,224,True,668,436,True,736,474,True
+2024-01-01T07:10:09.476Z,37.4874,137.271,10,7.5,mww,"2024 Noto Peninsula, Japan Earthquake",us6000m0xl,100,65,35,True,107,56,True,117,58,True
+2024-04-02T23:58:12.173Z,23.8356,121.5976,40,7.4,mww,"15 km S of Hualien City, Taiwan",us7000m9g4,100,113,63,True,170,86,True,297,166,True
+2025-02-08T23:23:14.697Z,17.6506,-82.395,14.326,7.6,mww,"210 km SSW of George Town, Cayman Islands",us7000pcdl,111,7,3,True,13,5,True,19,8,True
+2025-03-28T06:20:52.715Z,22.011,95.9363,10,7.7,mww,"2025 Mandalay, Burma (Myanmar) Earthquake",us7000pn9s,127,16,7,True,32,12,True,38,15,True
+2025-05-02T12:58:26.014Z,-56.8094,-68.1019,10,7.4,mww,2025 Drake Passage Earthquake,us7000pwkn,100,66,50,True,96,69,True,104,74,True
+2025-07-20T06:49:04.327Z,52.8301,160.6816,34,7.4,mww,"2025 Eastern Kamchatka, Russia Earthquake",us7000qdyl,100,180,66,True,677,291,True,848,362,True
+2025-07-29T23:24:52.483Z,52.4948,160.2395,35,8.8,mww,"2025 Kamchatka Peninsula, Russia Earthquake",us6000qw60,565,626,424,True,1787,897,True,2136,1030,True
+2025-08-22T02:16:18.246Z,-60.3187,-61.9221,10,7.5,mww,2025 Southern Drake Passage Earthquake,us6000r2xq,100,11,9,True,16,14,True,19,16,True
+2025-09-13T02:37:56.761Z,53.1969,160.1901,58,7.4,mww,"105 km E of Petropavlovsk-Kamchatsky, Russia",us7000qvw5,100,8,2,True,246,130,True,306,156,True
+2025-09-18T18:58:14.939Z,53.1426,160.7206,27,7.8,mww,"140 km E of Petropavlovsk-Kamchatsky, Russia",us7000qx2g,145,164,99,True,288,152,True,354,179,True
+2025-10-10T01:43:59.585Z,7.2866,126.6902,59.425,7.4,mww,"12 km E of Santiago, Philippines",us6000rfwz,100,73,48,True,126,77,True,138,84,True
+2025-10-10T20:29:20.075Z,-60.1875,-61.8164,5.639,7.6,mww,Drake Passage,us6000rgf4,111,16,14,True,23,20,True,28,23,True
+2025-12-08T14:15:09.896Z,40.9984,142.1836,40.72,7.6,mww,"2025 Aomori Prefecture, Japan Earthquake",us6000rtdt,111,29,13,True,71,32,True,82,36,True
+2026-04-01T22:48:13.063Z,1.0931,126.2354,35,7.4,mww,"129 km ESE of Bitung, Indonesia",us6000slss,100,151,79,True,277,131,True,296,142,True
+2026-04-20T07:52:58.908Z,39.971,143.0592,25,7.4,mww,"102 km ENE of Miyako, Japan",us6000sri7,100,41,20,True,75,35,True,92,41,True
+2026-06-07T23:37:41.970Z,5.5994,125.056,56.991,7.8,mww,"25 km SW of Kablalan, Philippines",us7000srb1,145,142,85,True,274,157,True,322,183,True
+2026-06-24T22:05:04.053Z,10.5955,-67.2205,10,7.5,mww,"20 km W of Catia La Mar, Venezuela",us6000t7zp,100,4,2,True,8,5,True,8,5,True
+2026-08-14T21:58:21.561Z,-8.3358,121.3446,10,7.8,mww,"66 km NNW of Ende, Indonesia",us6000tkt2,145,96,60,True,329,199,True,363,214,True
+2026-10-09T17:56:06.036Z,7.5868,-80.769,12.647,7.7,mww,"12 km WSW of Pitaloza Arriba, Panama",us6000u18k,127,63,55,True,101,79,False,101,79,False
