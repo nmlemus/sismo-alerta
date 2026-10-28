@@ -4,7 +4,7 @@ name: tmp-catalogo
 on:
   push:
     branches: [tmp/catalogo]
-    paths: ["analysis/fetch_small.py"]
+    paths: ["analysis/fetch_check.py"]
 permissions:
   contents: write
 jobs:
@@ -13,11 +13,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - run: python3 analysis/fetch_small.py
+      - run: python3 analysis/fetch_check.py
       - if: always()
         run: |
           git config user.name "catalogo-usgs"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add analysis/data
-          git commit -m "Réplicas pequeñas (EMSC e IGC) para el análisis de migración"
+          git add analysis/check
+          git commit -m "Revisión del M4.9 del 28 de octubre"
           git push
