@@ -1,0 +1,26 @@
+time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+2015-02-06T13:39:37.720Z,9.3677,-78.6356,59.96,4.2,mb,,121,1.202,1.15,us,usc000tmpc,2022-07-28T02:16:39.278Z,"10 km SSW of Narganá, Panama",earthquake,5.4,22.6,0.371,2,reviewed,us,us
+2015-04-28T20:06:42.710Z,9.4823,-78.8617,59.87,4.3,mb,,64,1.012,1.19,us,us20002a0l,2022-07-31T02:44:35.492Z,"10 km E of Cartí Sugdup, Panama",earthquake,7.5,8,0.129,17,reviewed,us,us
+2016-01-13T23:21:42.000Z,9.7682,-79.3116,10,4.2,mb,,46,0.791,1.12,us,us10004e9t,2022-08-02T05:04:29.466Z,"Panama",earthquake,4.8,2,0.374,2,reviewed,us,us
+2016-04-17T19:00:33.500Z,9.2303,-80.6355,10,4.4,mb,,111,0.79,1.13,us,us20005j9a,2022-08-02T18:56:24.931Z,"18 km NNW of Coclé del Norte, Panama",earthquake,6.4,1.9,0.12,20,reviewed,us,us
+2017-02-20T19:35:48.360Z,8.2963,-79.2494,16.46,4.7,mb,,85,1.041,0.85,us,us20008ky6,2021-02-28T18:45:28.748Z,"35 km W of La Guinea, Panama",earthquake,7,4.8,0.034,266,reviewed,us,us
+2017-05-04T22:55:12.600Z,9.396,-78.343,73.58,4.8,mwr,,77,1.221,1.21,us,us10008phn,2017-07-29T03:16:22.040Z,"15 km NW of Playón Chico, Panama",earthquake,8.2,7.3,0.063,24,reviewed,us,us
+2017-08-25T00:43:45.690Z,9.5535,-79.3868,46.99,4.1,mb,,50,0.587,0.93,us,us2000abiv,2022-08-07T15:32:39.238Z,"3 km SW of Palenque, Panama",earthquake,7.6,13,0.165,10,reviewed,us,us
+2017-08-31T02:40:28.720Z,9.542,-78.9752,10,4,mb,,69,0.929,0.77,us,us2000add7,2022-08-07T16:08:54.881Z,"2 km WSW of El Porvenir, Panama",earthquake,4.7,1.9,0.258,4,reviewed,us,us
+2017-08-31T10:02:47.590Z,9.4251,-78.4984,67.69,4.1,mb,,79,1.346,1.14,us,us2000adf3,2017-11-28T18:33:54.040Z,"9 km ESE of Narganá, Panama",earthquake,9.3,12,0.158,11,reviewed,us,us
+2017-09-14T10:03:26.070Z,9.8708,-78.4702,10,4.2,mb,,143,1.519,1.32,us,us2000am9r,2017-12-13T02:29:43.040Z,"48 km NNE of Narganá, Panama",earthquake,8.6,2,0.136,15,reviewed,us,us
+2017-12-09T15:29:54.080Z,9.6384,-78.9606,56.3,4.5,mb,,60,0.984,1.39,us,us2000c2dx,2018-02-28T02:32:34.040Z,"9 km N of El Porvenir, Panama",earthquake,7.8,11.2,0.061,78,reviewed,us,us
+2018-02-11T04:45:10.180Z,9.5919,-79.4062,36.91,4.3,mb,,82,0.599,0.42,us,us2000d0gi,2018-05-03T22:15:09.040Z,"1 km N of Viento Frío, Panama",earthquake,7.5,24.6,0.375,2,reviewed,us,us
+2018-08-06T17:58:25.010Z,9.858,-78.6394,35,4.9,mb,,61,1.366,1.09,us,us1000g48q,2018-10-17T18:11:55.040Z,"46 km N of Narganá, Panama",earthquake,6.7,2,0.027,438,reviewed,us,us
+2019-03-14T07:09:55.830Z,8.7126,-79.0797,26.71,4.4,mb,,91,0.873,0.63,us,us1000jfbt,2019-06-01T21:24:14.040Z,"10 km NNW of Contadora, Panama",earthquake,5.1,5.4,0.101,28,reviewed,us,us
+2020-08-17T05:26:27.394Z,9.4784,-79.1632,34.51,3.7,ml,,82,0.733,0.6,us,us6000bg74,2020-10-24T20:09:00.040Z,"7 km SSE of Santa Isabel, Panama",earthquake,7.2,6,0.115,10,reviewed,us,us
+2021-05-01T06:13:41.669Z,9.6892,-79.1576,43.8,5.1,mww,,79,2.875,0.87,us,us7000dz7c,2022-04-19T01:22:24.414Z,"17 km NNE of Santa Isabel, Panama",earthquake,6.3,7.3,0.083,14,reviewed,us,us
+2022-03-03T07:37:00.697Z,10.0015,-78.5589,35.03,5,mww,,42,2.442,0.64,us,us6000h1nm,2022-05-07T21:32:45.040Z,"61 km N of Narganá, Panama",earthquake,5,4.6,0.065,23,reviewed,us,us
+2023-05-03T02:12:28.269Z,9.3732,-78.541,79.43,5,mww,88,61,3.355,0.61,us,us7000jxn2,2024-01-23T13:05:23.311Z,"9 km SSE of Narganá, Panama",earthquake,6.65,4.852,0.049,40,reviewed,us,us
+2023-05-25T11:36:14.498Z,7.863,-80.8766,10,4.4,mb,43,65,2.017,1.11,us,us7000k3vs,2023-07-29T22:00:37.040Z,"5 km WNW of Cerro Largo, Panama",earthquake,7.08,1.837,0.17,10,reviewed,us,us
+2023-06-10T23:51:45.949Z,10.0493,-79.5157,10,4.2,mb,11,136,3.324,0.17,us,us7000k8y8,2023-08-12T17:15:27.040Z,"51 km N of Nombre de Dios, Panama",earthquake,10.1,1.985,0.372,2,reviewed,us,us
+2023-07-19T08:38:15.702Z,9.1274,-79.6859,10,3.5,ml,12,132,2.984,0.43,us,us7000kgw1,2023-09-28T21:33:51.040Z,"7 km WSW of Chilibre, Panama",earthquake,5.15,1.999,0.097,14,reviewed,us,us
+2023-08-29T04:59:23.377Z,9.9367,-78.4562,33.948,5.5,mww,110,33,2.323,0.73,us,us7000krsj,2023-11-04T21:35:44.040Z,"56 km NNE of Narganá, Panama",earthquake,6.94,3.395,0.054,33,reviewed,us,us
+2025-03-05T04:53:57.671Z,9.2536,-78.2118,85.383,4.3,mb,60,94,1.607,0.81,us,us6000pwz1,2025-05-16T17:30:01.040Z,"6 km SSE of Playón Chico, Panama",earthquake,7.07,9.636,0.08,44,reviewed,us,us
+2025-10-16T04:17:55.494Z,7.9186,-78.8977,10,4,mb,12,160,1.549,0.72,us,us6000rlw5,2026-01-09T15:38:45.040Z,"38 km S of La Esmeralda, Panama",earthquake,7.1,1.977,0.212,6,reviewed,us,us
+2026-08-28T06:46:30.498Z,10.0815,-78.43,10,4.3,mb,41,54,1.659,0.82,us,us7000tci6,2026-10-30T11:37:52.040Z,"72 km NNE of Narganá, Panama",earthquake,6.27,1.916,0.075,50,reviewed,us,us

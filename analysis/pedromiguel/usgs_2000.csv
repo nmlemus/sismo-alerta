@@ -1,0 +1,39 @@
+time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+2000-01-19T05:27:12.900Z,9.803,-79.155,6,3.7,md,,,,,us,usp0009mbs,2014-11-07T01:09:20.574Z,"29 km N of Santa Isabel, Panama",earthquake,,,,,reviewed,upa,upa
+2000-02-07T06:06:40.900Z,8.769,-78.291,37.5,3.6,md,,,,,us,usp0009n5e,2014-11-07T01:09:28.293Z,"19 km NW of Santa Fé, Panama",earthquake,,,,,reviewed,upa,upa
+2000-02-26T18:24:39.220Z,9.406,-78.532,65,6.1,mwc,,,,1.08,us,usp0009p0a,2022-04-29T18:33:51.159Z,"7 km SE of Narganá, Panama",earthquake,,,,,reviewed,us,hrv
+2000-10-31T11:33:11.510Z,10.066,-79.44,66.2,4.3,mb,33,,,0.75,us,usp000a2s8,2014-11-07T01:11:20.261Z,"53 km N of Viento Frío, Panama",earthquake,,,,2,reviewed,us,us
+2001-03-01T01:36:55.190Z,9.415,-78.416,52.6,4.3,mb,62,,,0.93,us,usp000aan8,2014-11-07T01:12:15.295Z,"19 km E of Narganá, Panama",earthquake,,,,4,reviewed,us,us
+2001-03-16T05:46:03.820Z,7.892,-79,33,3.5,mb,9,,,1.4,us,usp000abgq,2014-11-07T01:12:21.549Z,"42 km SSW of La Esmeralda, Panama",earthquake,,,,1,reviewed,us,us
+2002-03-16T21:52:30.330Z,9.025,-78.955,33,5.3,mwc,120,,,0.86,us,usp000b0f6,2022-05-02T15:47:02.611Z,"11 km NNW of Pásiga, Panama",earthquake,,,,,reviewed,us,hrv
+2002-05-29T09:55:15.960Z,9.891,-78.104,52.7,4.2,mb,36,,,1.01,us,usp000b561,2014-11-07T01:15:41.109Z,"65 km NNE of Playón Chico, Panama",earthquake,,,,9,reviewed,us,us
+2002-10-11T14:05:51.500Z,9.635,-78.955,35.2,4.3,mb,33,,,,us,usp000be9h,2014-11-07T01:16:44.098Z,"9 km N of El Porvenir, Panama",earthquake,,,,4,reviewed,casc,us
+2002-12-08T02:45:05.740Z,9.74,-78.489,33,3.9,mb,16,,,0.9,us,usp000bka0,2014-11-07T01:17:19.312Z,"34 km NNE of Narganá, Panama",earthquake,,,,3,reviewed,us,us
+2003-05-11T10:49:14.730Z,9.275,-80.209,59.8,4,md,24,128.5,,0.77,us,usp000bx11,2014-11-07T01:18:36.193Z,"14 km WNW of Nuevo Chagres, Panama",earthquake,,7.8,,,reviewed,us,casc
+2003-06-03T06:42:04.480Z,9.727,-78.366,64.5,4.4,mb,59,110.6,,1.07,us,usp000byxu,2014-11-07T01:18:49.650Z,"39 km NE of Narganá, Panama",earthquake,,,,17,reviewed,us,us
+2003-07-31T14:41:36.270Z,7.834,-80.251,33,0,,7,130.7,,0.86,us,usp000c3sw,2014-11-07T01:19:19.730Z,"2 km E of La Enea, Panama",earthquake,,,,,reviewed,us,us
+2003-08-13T08:29:27.280Z,9.355,-79.941,54.1,5.4,mwc,351,53.6,,0.77,us,usp000c4rd,2022-05-02T16:40:32.818Z,"4 km W of Cristóbal, Panama",earthquake,,3.2,,,reviewed,us,hrv
+2003-10-28T15:58:05.390Z,9.513,-80.287,47.8,4.8,mb,141,72.7,,0.81,us,usp000cbfs,2014-11-07T01:20:16.829Z,"37 km NW of Nuevo Chagres, Panama",earthquake,,5.6,,57,reviewed,us,us
+2004-06-07T19:13:27.860Z,9.474,-78.273,69.9,0,,5,120,,0.76,us,usp000cxca,2014-11-07T01:22:34.903Z,"18 km NNW of Playón Chico, Panama",earthquake,,26.6,,,reviewed,us,us
+2004-08-22T04:54:09.090Z,9.35,-78.567,74,4.7,mb,101,47.6,,0.93,us,usp000d2mx,2014-11-07T01:23:15.058Z,"10 km SSE of Narganá, Panama",earthquake,,,,31,reviewed,us,us
+2004-12-19T08:23:48.250Z,9.38,-78.82,58.1,5.5,mwb,368,36.1,,0.87,us,usp000db0b,2025-12-19T23:18:02.132Z,"17 km ESE of Cartí Sugdup, Panama",earthquake,,,,,reviewed,us,us
+2004-12-20T11:04:38.250Z,9.231,-78.845,55.5,4.6,mb,37,149.6,,0.99,us,usp000db33,2014-11-07T01:24:19.731Z,"5 km E of Cañita, Panama",earthquake,,10.3,,7,reviewed,us,us
+2005-03-15T20:19:39.860Z,9.937,-78.814,64.8,4,mb,27,64.4,,1.2,us,usp000dj9k,2014-11-07T01:25:14.771Z,"45 km NNE of El Porvenir, Panama",earthquake,,9.9,,1,reviewed,us,us
+2005-03-15T20:24:01.990Z,9.848,-78.83,70.7,4.2,mb,32,64.4,,1.11,us,usp000dj9m,2022-07-14T17:19:08.756Z,"35 km NNE of El Porvenir, Panama",earthquake,,9.1,,5,reviewed,us,us
+2005-03-22T16:42:41.660Z,9.769,-78.806,64.8,4,mb,14,75.6,,0.96,us,usp000djtv,2014-11-07T01:25:17.815Z,"28 km NE of El Porvenir, Panama",earthquake,,12.2,,2,reviewed,us,us
+2005-07-08T03:55:48.260Z,9.433,-78.592,85.3,3.9,mb,15,138.8,,0.97,us,usp000durg,2014-11-07T01:26:27.292Z,"1 km SSW of Narganá, Panama",earthquake,,13.8,,6,reviewed,us,us
+2007-03-14T13:57:59.000Z,9.873,-79.899,49.5,4.2,md,28,62.5,,,us,usp000f6q0,2014-11-07T01:31:52.487Z,"44 km NW of Portobelo, Panama",earthquake,,,,,reviewed,casc,casc
+2008-02-10T03:08:16.490Z,10.132,-79.403,54.2,0,,12,70,,1.38,us,usp000fyk7,2014-11-07T01:34:55.681Z,"60 km N of Viento Frío, Panama",earthquake,,14.8,,,reviewed,us,us
+2008-05-24T16:26:54.890Z,7.802,-78.113,10,4.2,mb,11,180.9,,1.4,us,usp000g7ns,2014-11-07T01:36:05.358Z,"21 km SSE of Bayamón, Panama",earthquake,,,,3,reviewed,us,us
+2008-06-16T16:50:28.090Z,9.349,-78.817,74.7,3.5,mb,20,64.8,,1.24,us,usp000g9ub,2014-11-07T01:36:22.172Z,"16 km NNE of Cañita, Panama",earthquake,,8.8,,2,reviewed,us,us
+2008-09-22T05:31:28.480Z,9.63,-79.211,45.9,4.3,mb,20,58.1,,1.36,us,usp000ghgy,2014-11-07T01:37:14.135Z,"9 km N of Palmira, Panama",earthquake,,12.2,,4,reviewed,us,us
+2009-07-04T06:49:35.510Z,9.59,-78.966,38,6.1,mwc,358,25.8,,0.95,us,usp000gyxm,2022-07-15T13:11:55.977Z,"4 km NNW of El Porvenir, Panama",earthquake,,,,,reviewed,us,gcmt
+2009-07-06T04:10:38.300Z,9.582,-78.979,61.2,5.3,mwc,207,32.5,,0.94,us,usp000gyz4,2022-07-15T13:18:54.679Z,"4 km NW of El Porvenir, Panama",earthquake,,4.8,,,reviewed,us,gcmt
+2011-02-09T03:10:32.170Z,9.746,-79.564,35,4.1,mb,13,65.5,,1.29,us,usp000hu8q,2022-07-19T03:46:49.513Z,"21 km NNW of Nombre de Dios, Panama",earthquake,,,,2,reviewed,us,us
+2011-02-09T06:05:00.590Z,9.66,-79.496,35,4.6,mb,111,38.3,,0.94,us,usp000hu8x,2022-07-19T03:48:22.615Z,"9 km NNW of Nombre de Dios, Panama",earthquake,,,,51,reviewed,us,us
+2012-03-07T04:39:38.340Z,9.598,-79.036,54.3,4.6,mb,32,65.2,,1.17,us,usp000jfw3,2015-03-24T01:51:58.500Z,"9 km N of Tubualá, Panama",earthquake,,7.6,,18,reviewed,us,us
+2012-04-07T03:50:20.200Z,9.595,-79.054,36.4,4,mb,22,64.9,,0.94,us,usp000jhbw,2015-03-24T01:47:56.468Z,"8 km NNW of Tubualá, Panama",earthquake,,8.8,,7,reviewed,us,us
+2012-08-27T03:24:12.060Z,7.853,-78.214,28,4.3,mb,35,44.8,,1.05,us,usp000jqve,2014-11-07T01:48:37.813Z,"12 km S of Bayamón, Panama",earthquake,,14.8,,6,reviewed,us,us
+2012-11-05T23:30:11.150Z,9.293,-78.194,61.9,4.3,mb,34,59.4,,0.91,us,usp000jv31,2015-03-24T02:26:00.346Z,"4 km W of San Ignacio de Tupile, Panama",earthquake,,5.7,,10,reviewed,us,us
+2013-09-22T12:49:32.440Z,9.7844,-79.8589,27.15,4.5,mb,,95,0.614,0.81,us,usb000jz8d,2022-07-25T22:54:17.995Z,"33 km NW of Portobelo, Panama",earthquake,,10.1,0.381,,reviewed,us,us
+2014-09-21T14:43:56.450Z,9.8318,-80.7569,45.53,4.5,mb,,79,1.122,1.24,us,usb000shrd,2014-12-19T00:05:24.040Z,"86 km NNW of Coclé del Norte, Panama",earthquake,8.3,6.3,0.121,21,reviewed,us,us
