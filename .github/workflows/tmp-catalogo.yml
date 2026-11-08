@@ -4,7 +4,7 @@ name: tmp-catalogo
 on:
   push:
     branches: [tmp/catalogo]
-    paths: ["analysis/fetch_stress.py", "analysis/fetch_pedromiguel.py"]
+    paths: ["analysis/fetch_stress.py", "analysis/fetch_pedromiguel.py", "analysis/fetch_caribe.py"]
 permissions:
   contents: write
 jobs:
@@ -13,11 +13,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - run: python3 analysis/fetch_pedromiguel.py
+      - run: python3 analysis/fetch_caribe.py
       - if: always()
         run: |
           git config user.name "catalogo-usgs"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add analysis/pedromiguel
+          git add analysis/caribe
           git commit -m "Catálogos alrededor de la ciudad de Panamá"
           git push
